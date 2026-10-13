@@ -26,11 +26,33 @@ const STATUS=[
  {k:'',label:'Present',de:'',col:''},
  {k:'crown',label:'Crown',de:'CR',col:'--t-crown'},
  {k:'missing',label:'Missing',de:'MIS',col:'--t-missing'},
- {k:'implant',label:'Implant',de:'IMP',col:'--t-implant'},
- {k:'bridge',label:'Bridge pontic',de:'BR',col:'--t-bridge'},
+ {k:'implant',label:'Implant',de:'IMPL',col:'--t-implant'},
+ {k:'abut',label:'Bridge abutment',de:'ABT',col:'--t-bridge'},
+ {k:'bridge',label:'Bridge pontic',de:'PON',col:'--t-bridge'},
+ {k:'veneer',label:'Veneer',de:'VEN',col:'--t-ven'},
+ {k:'impacted',label:'Impacted',de:'IMP',col:'--t-imp'},
+ {k:'partial',label:'Partially erupted',de:'PE',col:'--t-pe'},
+ {k:'unerupted',label:'Unerupted',de:'UE',col:'--t-ue'},
+ {k:'root',label:'Retained root',de:'RR',col:'--t-rr'},
  {k:'ext',label:'For extraction',de:'XLA',col:'--t-ext'},
  {k:'frac',label:'Fractured',de:'FX',col:'--t-frac'}
 ];
+/* Impaction details (Winter's angulation; Pell & Gregory level and ramus class) and mobility */
+const IMP_ANG=['Mesioangular','Distoangular','Vertical','Horizontal','Buccoangular','Linguoangular','Inverted'];
+const IMP_DEPTH=['Level A','Level B','Level C'];
+const IMP_CLASS=['Class I','Class II','Class III'];
+const MOB=['','I','II','III'];
+/* Crown / bridge / veneer materials */
+const PROS_MATS=[['PFM','Porcelain fused to metal (PFM)'],['ZR','Zirconia'],['EMX','E-max (lithium disilicate)'],['CER','Full ceramic / porcelain'],['FM','Full metal'],['AU','Gold'],['TMP','Acrylic / temporary']];
+const PM=Object.fromEntries(PROS_MATS);
+const PROS_ST=['crown','abut','bridge','veneer','implant'];
+/* Tooth sets (FDI). Primary (milk) teeth: quadrants 5–8, positions 1–5. */
+const PERM={UR:[18,17,16,15,14,13,12,11],UL:[21,22,23,24,25,26,27,28],LR:[48,47,46,45,44,43,42,41],LL:[31,32,33,34,35,36,37,38]};
+const PRIM={UR:[55,54,53,52,51],UL:[61,62,63,64,65],LR:[85,84,83,82,81],LL:[71,72,73,74,75]};
+const ALL_TEETH=[...PERM.UR,...PERM.UL,...PRIM.UR,...PRIM.UL,...PRIM.LR,...PRIM.LL,...PERM.LR,...PERM.LL];
+const isPrim=n=>Math.floor(n/10)>=5;
+const DENT={perm:'Permanent',mixed:'Mixed dentition',prim:'Milk teeth (primary)'};
+function autoDent(p){const a=p.dob?age(p.dob):null;if(a===null||a==='')return 'perm';return a<6?'prim':a<13?'mixed':'perm'}
 const ST=Object.fromEntries(STATUS.map(s=>[s.k,s]));
 const MODES=[
  {k:'caries',label:'Caries',col:'--t-caries'},
@@ -49,14 +71,16 @@ const MATS=[
 ];
 const MT=Object.fromEntries(MATS.map(m=>[m.k,m]));
 const SURF_ORDER=['M','O','D','B','L'];
-const isUpper=n=>Math.floor(n/10)<=2;
+const isUpper=n=>[1,2,5,6].includes(Math.floor(n/10));
 const isAnt=n=>n%10<=3;
 function surfLabel(n,k){if(k==='O')return isAnt(n)?'I':'O';if(k==='B')return isAnt(n)?'La':'B';if(k==='L')return isUpper(n)?'P':'L';return k}
 function surfName(n,k){return {M:'Mesial',D:'Distal',O:isAnt(n)?'Incisal':'Occlusal',B:isAnt(n)?'Labial':'Buccal',L:isUpper(n)?'Palatal':'Lingual'}[k]}
-function surfMap(n){const q=Math.floor(n/10),up=q<=2,mr=(q===1||q===4);return {top:up?'B':'L',bottom:up?'L':'B',left:mr?'D':'M',right:mr?'M':'D',center:'O'}}
+function surfMap(n){const q=Math.floor(n/10),up=[1,2,5,6].includes(q),mr=[1,4,5,8].includes(q);return {top:up?'B':'L',bottom:up?'L':'B',left:mr?'D':'M',right:mr?'M':'D',center:'O'}}
 function surfColor(v){if(v.t==='caries')return '--t-caries';if(v.t==='sec')return '--t-sec';if(v.t==='defect')return '--t-frac';return (MT[v.m]||MT.comp).col}
 function surfStr(n,keys){return SURF_ORDER.filter(k=>keys.includes(k)).map(k=>surfLabel(n,k)).join('')}
-function toothName(n){const q=Math.floor(n/10),pos=n%10;return ['','Upper right','Upper left','Lower left','Lower right'][q]+' '+['','central incisor','lateral incisor','canine','first premolar','second premolar','first molar','second molar','third molar'][pos]}
+function toothName(n){const q=Math.floor(n/10),pos=n%10;
+  if(q>=5)return ['','','','','','Upper right','Upper left','Lower left','Lower right'][q]+' primary '+['','central incisor','lateral incisor','canine','first molar','second molar'][pos];
+  return ['','Upper right','Upper left','Lower left','Lower right'][q]+' '+['','central incisor','lateral incisor','canine','first premolar','second premolar','first molar','second molar','third molar'][pos]}
 function summaryOf(p,n){
   const sf=(p.surf&&p.surf[n])||{},g={};
   for(const k in sf){const v=sf[k],key=v.t+'|'+(v.t==='fill'||v.t==='sec'?v.m:'');(g[key]=g[key]||[]).push(k)}
@@ -92,7 +116,7 @@ const ALERT_KEYS={endo:'Endocarditis risk',anticoag:'Anticoagulant',bleed:'Bleed
 const PROCS=[
  'Examination & diagnosis','Radiograph (BW / PA)','OPG','Scale & polish','Periodontal therapy (RSD)','Fluoride / fissure sealant',
  'Filling – composite','Filling – amalgam','Filling – GIC','Root canal treatment','Post & core','Crown – zirconia','Crown – PFM','Crown – full metal',
- 'Bridge','Veneer','Inlay / onlay','Extraction','Surgical extraction','Implant placement','Implant crown','Partial denture (acrylic)','Partial denture (cobalt chrome)','Complete denture','Night guard','Whitening','Review / recall'
+ 'Crown – E-max','Crown – full ceramic','Bridge – PFM','Bridge – zirconia','Bridge – E-max','Bridge – full metal','Veneer','Inlay / onlay','Extraction','Surgical extraction','Implant placement','Implant crown','Pulpotomy (primary tooth)','Pulpectomy (primary tooth)','Stainless steel crown (SSC)','Space maintainer','Operculectomy','Exposure & bonding (impacted tooth)','Partial denture (acrylic)','Partial denture (cobalt chrome)','Complete denture','Night guard','Whitening','Review / recall'
 ];
 const PHASES=[[1,'Urgent / relief of pain'],[2,'Stabilisation & hygiene'],[3,'Restorative'],[4,'Prosthetic & replacement'],[5,'Maintenance & recall']];
 const BPE_OPTS=['','0','1','2','3','4','*','X'];
@@ -127,7 +151,7 @@ function sample(){
    notes:[{id:uid(),date:today(),title:'Examination',by:'',text:'C/O: pain lower left back, 3 days.\nO/E: 38 partially erupted, operculum inflamed. 26 MO caries. Naswar user – oral mucosa checked, no lesions. BPE 2/2/3 – 3/2/2.\nRx: irrigation, OHI, tobacco cessation advice.\nPlan: see treatment plan. Review 2 weeks.'}]};
 }
 function migrate(p){
-  p.chart=p.chart||{};p.surf=p.surf||{};p.rct=p.rct||{};p.toothNotes=p.toothNotes||{};p.plan=p.plan||[];p.notes=p.notes||[];
+  p.chart=p.chart||{};p.surf=p.surf||{};p.rct=p.rct||{};p.toothNotes=p.toothNotes||{};p.imp=p.imp||{};p.mob=p.mob||{};p.pros=p.pros||{};p.plan=p.plan||[];p.notes=p.notes||[];
   p.bpe=p.bpe||['','','','','',''];p.planConsent=p.planConsent||{agreed:false,date:''};
   p.mh=p.mh||{date:'',answers:{},meds:'',smoke:'',tobacco:'',alcohol:'',signed:false};p.mh.answers=p.mh.answers||{};
   for(const t in p.chart){const s=p.chart[t];
@@ -302,8 +326,8 @@ async function refreshClinic(){const {data}=await sb.from('clinics').select('id,
 
 /* ---------- PDF record ---------- */
 function chartLines(p){
-  const out=[];const all=[18,17,16,15,14,13,12,11,21,22,23,24,25,26,27,28,48,47,46,45,44,43,42,41,31,32,33,34,35,36,37,38];
-  for(const n of all){const parts=[];const st=p.chart&&p.chart[n];if(st&&ST[st])parts.push(ST[st].label);if(p.rct&&p.rct[n])parts.push('RCT');
+  const out=[];if(p.dent)out.push('Dentition: '+DENT[p.dent]);
+  for(const n of ALL_TEETH){const parts=[];const st=p.chart&&p.chart[n];if(st&&ST[st])parts.push(ST[st].label+impText(p,n)+prosText(p,n));if(p.rct&&p.rct[n])parts.push('RCT');if(p.mob&&p.mob[n])parts.push('mobility grade '+p.mob[n]);
     summaryOf(p,n).forEach(x=>parts.push(x.s+' '+x.txt.toLowerCase()));if(p.toothNotes&&p.toothNotes[n])parts.push(p.toothNotes[n]);
     if(parts.length)out.push(n+': '+parts.join(', '));}
   return out;
@@ -1352,6 +1376,7 @@ function localBackupHtml(admin){
 }
 function patientView(){
   const p=P();if(!p){view.screen='list';return listView();}
+  migrate(p);
   const al=alertsOf(p),ms=mhStatus(p);
   const tabs=[['details','Details'],['mh','Medical history'],['chart','Chart'],['plan','Treatment plan'],['pay','Payments'],['notes','Clinical notes'],['xrays','X-rays'],['appts','Appointments']];
   let body={details:detailsTab,mh:mhTab,chart:chartTab,plan:planTab,pay:payTab,notes:notesTab,xrays:xrayTab,appts:apptTab}[view.tab](p);
@@ -1420,7 +1445,7 @@ function toothSVG(p,n,big){
   const sf=p.surf[n]||{},st=p.chart[n]||'',map=surfMap(n);
   const polys={top:'4,4 96,4 68,32 32,32',bottom:'4,96 96,96 68,68 32,68',left:'4,4 32,32 32,68 4,96',right:'96,4 68,32 68,68 96,96',center:'32,32 68,32 68,68 32,68'};
   const lp={top:[50,19],bottom:[50,86],left:[17,53],right:[83,53],center:[50,53]};
-  let s=`<svg viewBox="0 0 100 100" ${big?'role="group" aria-label="Surfaces of tooth '+n+'"':'aria-hidden="true"'}><g ${st==='missing'?'opacity=".3"':''}>`;
+  let s=`<svg viewBox="0 0 100 100" ${big?'role="group" aria-label="Surfaces of tooth '+n+'"':'aria-hidden="true"'}><g ${st==='missing'||st==='unerupted'||st==='root'?'opacity=".3"':''}>`;
   for(const pos in polys){const k=map[pos],v=sf[k];
     s+=`<polygon points="${polys[pos]}" fill="${v?`var(${surfColor(v)})`:'var(--paper)'}" stroke="var(--ink)" stroke-width="${big?1.5:3.5}" stroke-linejoin="round"${big?` data-surf="${k}" tabindex="0" role="button" aria-label="${surfName(n,k)} surface${v?', '+(v.t==='fill'?(MT[v.m]||MT.comp).label+' filling':v.t):''}"`:''}/>`;}
   s+='</g>';
@@ -1428,6 +1453,14 @@ function toothSVG(p,n,big){
   if(st==='crown')s+=`<rect x="3" y="3" width="94" height="94" fill="none" stroke="var(--t-crown)" ${ov(big?5:9)}/>`;
   if(st==='implant')s+=`<rect x="3" y="3" width="94" height="94" fill="none" stroke="var(--t-implant)" ${ov(big?5:9)}/>`;
   if(st==='bridge')s+=`<rect x="3" y="3" width="94" height="94" fill="none" stroke="var(--t-bridge)" stroke-dasharray="10 6" ${ov(big?5:9)}/>`;
+  if(st==='abut')s+=`<rect x="3" y="3" width="94" height="94" fill="none" stroke="var(--t-bridge)" ${ov(big?6:10)}/>`;
+  if(!big&&(st==='abut'||st==='bridge')){const isB=x=>x&&['abut','bridge'].includes(p.chart[x]);const [l,r]=neighbours(n);
+    s+=`<path d="M${isB(l)?-70:20} 50H${isB(r)?170:80}" stroke="var(--t-bridge)" ${ov(8)}/>`}
+  if(st==='veneer'){const y0=map.top==='B'?3:79;s+=`<rect x="3" y="${y0}" width="94" height="18" rx="3" fill="var(--t-ven)" opacity=".55" ${ov(0)}/>`}
+  if(st==='impacted')s+=`<rect x="3" y="3" width="94" height="94" fill="none" stroke="var(--t-imp)" stroke-dasharray="8 6" ${ov(big?5:9)}/><path d="M22 78L78 22M78 22H56M78 22V44" fill="none" stroke="var(--t-imp)" stroke-linecap="round" stroke-linejoin="round" ${ov(big?5:9)}/>`;
+  if(st==='partial')s+=`<rect x="3" y="3" width="94" height="94" fill="none" stroke="var(--t-pe)" stroke-dasharray="8 6" ${ov(big?5:9)}/><path d="M6 50H94" stroke="var(--t-pe)" ${ov(big?5:9)}/>`;
+  if(st==='unerupted')s+=`<rect x="3" y="3" width="94" height="94" fill="none" stroke="var(--t-ue)" stroke-dasharray="3 7" stroke-linecap="round" ${ov(big?5:9)}/>`;
+  if(st==='root')s+=`<path d="M26 22L42 86M74 22L58 86M20 22H80" fill="none" stroke="var(--t-rr)" stroke-linecap="round" ${ov(big?6:11)}/>`;
   if(st==='frac')s+=`<polyline points="20,8 45,40 35,55 70,92" fill="none" stroke="var(--t-frac)" ${ov(big?4:8)}/>`;
   if(st==='missing'||st==='ext')s+=`<path d="M10 10L90 90M90 10L10 90" fill="none" stroke="var(${st==='ext'?'--t-ext':'--t-missing'})" stroke-linecap="round" ${ov(big?5:10)}/>`;
   if(big)for(const pos in lp){const k=map[pos];s+=`<text x="${lp[pos][0]}" y="${lp[pos][1]}" text-anchor="middle" dominant-baseline="middle">${surfLabel(n,k)}</text>`}
@@ -1446,11 +1479,16 @@ function toothXrayHtml(t){
       <label class="btn filebtn ${xrBusy?'busy':''}">${xrBusy?'Saving…':'+ Add X-ray for tooth '+t}<input type="file" id="tx-file" accept="image/*,application/pdf" multiple ${xrBusy||readOnly()?'disabled':''}></label></div>`}
   </div>`;
 }
+function prosText(p,n){const st=p.chart[n];const m=(p.pros||{})[n];return PROS_ST.includes(st)&&m&&PM[m]?' – '+PM[m]:''}
+const ROWS=[[...PERM.UR,...PERM.UL],[...PERM.LR,...PERM.LL],[...PRIM.UR,...PRIM.UL],[...PRIM.LR,...PRIM.LL]];
+function neighbours(n){for(const r of ROWS){const i=r.indexOf(n);if(i>=0)return [r[i-1],r[i+1]]}return [null,null]}
+function impText(p,n){const st=p.chart[n];const d=(p.imp||{})[n];if(!(st==='impacted'||st==='partial')||!d)return '';const x=[d.ang,d.depth,d.cls].filter(Boolean).join(', ').toLowerCase();return x?' ('+x+')':''}
+const ANG_SHORT={Mesioangular:'MA',Distoangular:'DA',Vertical:'V',Horizontal:'H',Buccoangular:'BA',Linguoangular:'LA',Inverted:'INV'};
 function toothBtn(p,n,lower){
-  const st=ST[p.chart[n]||'']||ST[''];
-  const code=[st.de,p.rct[n]?'RCT':''].filter(Boolean).join(' ');
+  const st=ST[p.chart[n]||'']||ST[''];const imp=(p.imp||{})[n]||{};
+  const code=[st.de,PROS_ST.includes(p.chart[n])&&p.pros&&p.pros[n]?p.pros[n]:'',(p.chart[n]==='impacted'||p.chart[n]==='partial')&&imp.ang?ANG_SHORT[imp.ang]:'',p.rct[n]?'RCT':'',p.mob&&p.mob[n]?'M'+({I:1,II:2,III:3}[p.mob[n]]||''):''].filter(Boolean).join(' ');
   const sum=summaryOf(p,n).map(x=>x.s+' '+x.txt).join(', ');
-  return `<button class="tooth ${lower?'lo':''} ${view.tooth===n?'sel':''}" data-tooth="${n}" aria-label="Tooth ${n}: ${st.label}${p.rct[n]?', root canal treated':''}${sum?', '+sum:''}"><span>${n}</span>${toothSVG(p,n,false)}${toothHasXray(n)?'<i class="xr-dot" title="Has X-ray"></i>':''}<span class="code">${esc(code)||(p.toothNotes[n]?'•':'')}</span></button>`;
+  return `<button class="tooth ${lower?'lo':''} ${isPrim(n)?'prim':''} ${view.tooth===n?'sel':''}" data-tooth="${n}" aria-label="Tooth ${n}: ${st.label}${impText(p,n)}${prosText(p,n)}${p.rct[n]?', root canal treated':''}${sum?', '+sum:''}"><span>${n}</span>${toothSVG(p,n,false)}${toothHasXray(n)?'<i class="xr-dot" title="Has X-ray"></i>':''}<span class="code">${esc(code)||(p.toothNotes[n]?'•':'')}</span></button>`;
 }
 function editor(p,t,mode,mat,sum){
   const cur=p.chart[t]||'';
@@ -1468,27 +1506,44 @@ function editor(p,t,mode,mat,sum){
     </div>
     <h3>Whole tooth</h3>
     <div class="statusgrid">${STATUS.map(s=>`<button class="${cur===s.k?'on':''}" data-setst="${s.k}"><i style="width:12px;height:12px;border-radius:3px;flex:none;background:${s.col?`var(${s.col})`:'var(--paper)'};border:1px solid var(--line)"></i>${s.label}${s.de?`<b>${s.de}</b>`:''}</button>`).join('')}</div>
-    <label class="row small" style="gap:10px"><input type="checkbox" id="rct" data-rct="${t}" ${p.rct[t]?'checked':''} style="width:22px;height:22px"> Root canal treated (RCT)</label>
-    <label class="f"><span>Note for tooth ${t}</span><input type="text" id="toothnote" data-tnote="${t}" value="${esc(p.toothNotes[t])}" placeholder="e.g. deep caries, TTP +, mobility I"></label>
+    ${PROS_ST.includes(cur)?`<div class="impbox"><h3>${cur==='implant'?'Implant crown material':cur==='veneer'?'Veneer material':(cur==='crown'?'Crown':'Bridge')+' material'}</h3>
+      <div class="chips">${PROS_MATS.filter(([k])=>cur!=='veneer'||['CER','EMX','ZR','TMP'].includes(k)).map(([k,l])=>`<button class="chip ${(p.pros[t]||'')===k?'on':''}" data-pros="${k}">${l}</button>`).join('')}</div>
+      ${cur==='abut'||cur==='bridge'?'<p class="small muted" style="margin:0">Mark the support teeth as <b>Bridge abutment</b> and the replaced teeth as <b>Bridge pontic</b>. They are joined on the chart.</p>':''}</div>`:''}
+    ${cur==='impacted'||cur==='partial'?`<div class="impbox"><h3>Impaction details</h3><div class="grid3">
+      <label class="f"><span>Angulation (Winter)</span><select data-imp="ang" id="imp-ang"><option value="">—</option>${IMP_ANG.map(o=>`<option ${(p.imp[t]||{}).ang===o?'selected':''}>${o}</option>`).join('')}</select></label>
+      <label class="f"><span>Depth (Pell &amp; Gregory)</span><select data-imp="depth" id="imp-depth"><option value="">—</option>${IMP_DEPTH.map(o=>`<option ${(p.imp[t]||{}).depth===o?'selected':''}>${o}</option>`).join('')}</select></label>
+      ${t%10===8&&!isUpper(t)?`<label class="f"><span>Ramus relation</span><select data-imp="cls" id="imp-cls"><option value="">—</option>${IMP_CLASS.map(o=>`<option ${(p.imp[t]||{}).cls===o?'selected':''}>${o}</option>`).join('')}</select></label>`:''}
+    </div><p class="small muted" style="margin:0">Level A: occlusal plane at or above the second molar · B: between occlusal plane and cervical line · C: below the cervical line.</p></div>`:''}
+    <div class="row" style="gap:18px">
+      <label class="row small" style="gap:10px"><input type="checkbox" id="rct" data-rct="${t}" ${p.rct[t]?'checked':''} style="width:22px;height:22px"> Root canal treated (RCT)</label>
+      <label class="row small" style="gap:8px">Mobility <select id="mob" data-mob="${t}" style="width:auto">${MOB.map(o=>`<option value="${o}" ${(p.mob[t]||'')===o?'selected':''}>${o?'Grade '+o:'None'}</option>`).join('')}</select></label>
+    </div>
+    <label class="f"><span>Note for tooth ${t}</span><input type="text" id="toothnote" data-tnote="${t}" value="${esc(p.toothNotes[t])}" placeholder="e.g. deep caries, TTP +, pericoronitis"></label>
     ${toothXrayHtml(t)}
     <div class="row"><button class="btn" data-act="addToPlan">+ Add treatment for ${t}</button><span class="spacer"></span>${view.confirm==='clearTooth'?`<button class="btn small" data-act="cancelConfirm">Keep</button><button class="btn small danger" data-act="clearTooth">Yes, clear ${t}</button>`:`<button class="btn small danger" data-act="askClearTooth">Clear tooth</button>`}</div>
   </div>`;
 }
 function chartTab(p){
   const t=view.tooth,mode=view.mode||'caries',mat=view.mat||'comp';
-  const UR=[18,17,16,15,14,13,12,11],UL=[21,22,23,24,25,26,27,28],LR=[48,47,46,45,44,43,42,41],LL=[31,32,33,34,35,36,37,38];
-  const rowHtml=(a,b,lo)=>a.map(n=>toothBtn(p,n,lo)).join('')+'<span class="mid"></span>'+b.map(n=>toothBtn(p,n,lo)).join('');
+  const dent=p.dent||autoDent(p);
+  const blanks=k=>'<span></span>'.repeat(k);
+  const rowHtml=(a,b,lo,padL,padR)=>blanks(padL||0)+a.map(n=>toothBtn(p,n,lo)).join('')+'<span class="mid"></span>'+b.map(n=>toothBtn(p,n,lo)).join('')+blanks(padR||0);
+  const W=dent==='prim'?5:8,sideL=`grid-column:1/${W+1}`,sideR=`grid-column:${W+2}/${2*W+2}`;
+  let rows;
+  if(dent==='prim')rows=`${rowHtml(PRIM.UR,PRIM.UL,false)}<span class="occ"></span>${rowHtml(PRIM.LR,PRIM.LL,true)}`;
+  else if(dent==='mixed')rows=`${rowHtml(PERM.UR,PERM.UL,false)}<span class="rowlab">Primary</span>${rowHtml(PRIM.UR,PRIM.UL,false,3,3)}<span class="occ"></span>${rowHtml(PRIM.LR,PRIM.LL,true,3,3)}<span class="rowlab">Permanent</span>${rowHtml(PERM.LR,PERM.LL,true)}`;
+  else rows=`${rowHtml(PERM.UR,PERM.UL,false)}<span class="occ"></span>${rowHtml(PERM.LR,PERM.LL,true)}`;
   const legend=[...MODES.filter(m=>m.col).map(m=>[m.label,`background:var(${m.col})`]),...MATS.map(m=>[m.label,`background:var(${m.col})`]),
-    ['Crown (CR)','border:2.5px solid var(--t-crown)'],['Implant (IMP)','border:2.5px solid var(--t-implant)'],['Bridge pontic (BR)','border:2.5px dashed var(--t-bridge)'],['Missing (MIS) / extraction (XLA)','background:linear-gradient(45deg,transparent 40%,var(--t-ext) 40% 60%,transparent 60%)'],['RCT = root canal treated',''],['Has X-ray','background:#2a9d8f;border-radius:50%']];
+    ['Crown (CR)','border:2.5px solid var(--t-crown)'],['Implant (IMPL)','border:2.5px solid var(--t-implant)'],['Impacted (IMP)','border:2.5px dashed var(--t-imp)'],['Partially erupted (PE)','border:2.5px dashed var(--t-pe)'],['Unerupted (UE)','border:2.5px dotted var(--t-ue)'],['Retained root (RR)','background:var(--t-rr);opacity:.6'],['Veneer (VEN)','background:var(--t-ven)'],['Bridge abutment (ABT) / pontic (PON)','border:2.5px solid var(--t-bridge);border-style:solid dashed'],['Missing (MIS) / extraction (XLA)','background:linear-gradient(45deg,transparent 40%,var(--t-ext) 40% 60%,transparent 60%)'],['RCT = root canal treated',''],['M1–M3 = mobility grade',''],['Has X-ray','background:#2a9d8f;border-radius:50%']];
   const sum=t?summaryOf(p,t):[];
   return `<section class="panel">
-    <div class="row"><h2>Dental chart</h2><span class="spacer"></span><span class="small muted">FDI · tap a tooth</span></div>
-    <div class="opg"><div class="opg-in">
-      <span class="side" style="grid-column:1/9">Upper right · Q1</span><span></span><span class="side r" style="grid-column:10/18">Upper left · Q2</span>
-      ${rowHtml(UR,UL,false)}
-      <span class="occ"></span>
-      ${rowHtml(LR,LL,true)}
-      <span class="side" style="grid-column:1/9">Lower right · Q4</span><span></span><span class="side r" style="grid-column:10/18">Lower left · Q3</span>
+    <div class="row"><h2>Dental chart</h2><span class="spacer"></span>
+      <div class="seg" role="radiogroup" aria-label="Dentition">${Object.entries(DENT).map(([k,l])=>`<button type="button" class="${dent===k?'on':''}" data-dent="${k}" role="radio" aria-checked="${dent===k}">${l}</button>`).join('')}</div></div>
+    <p class="small muted" style="margin:0">${p.dent?'':(p.dob?'Chosen from the patient\'s age ('+age(p.dob)+' yrs). ':'')}FDI numbering · tap a tooth to chart it.</p>
+    <div class="opg"><div class="opg-in ${dent==='prim'?'prim-only':''}">
+      <span class="side" style="${sideL}">Upper right · Q${dent==='prim'?5:1}</span><span></span><span class="side r" style="${sideR}">Upper left · Q${dent==='prim'?6:2}</span>
+      ${rows}
+      <span class="side" style="${sideL}">Lower right · Q${dent==='prim'?8:4}</span><span></span><span class="side r" style="${sideR}">Lower left · Q${dent==='prim'?7:3}</span>
     </div></div>
     <p class="small muted" style="margin:0">Charted like an OPG: patient's right on your left. On a phone, swipe the chart sideways.</p>
     <div class="legend">${legend.map(([l,s])=>`<span>${s?`<i style="${s}"></i>`:''}${l}</span>`).join('')}</div>
@@ -1725,6 +1780,8 @@ document.addEventListener('click',async e=>{
   if(d.mh){p.mh.answers[d.mh]=Object.assign(p.mh.answers[d.mh]||{},{v:d.v});save();render();return}
   if(d.tooth){view.tooth=+d.tooth===view.tooth?null:+d.tooth;view.confirm=null;render();const ed=$('#editor');if(ed)ed.scrollIntoView({block:'nearest'});return}
   if(d.mode){view.mode=d.mode;render();return}
+  if(d.pros){const t=view.tooth;if(p.pros[t]===d.pros)delete p.pros[t];else p.pros[t]=d.pros;save();render();return}
+  if(d.dent){p.dent=d.dent;view.tooth=null;save();render();return}
   if(d.mat){view.mat=d.mat;if(view.mode!=='sec')view.mode='fill';render();return}
   if(d.setst!==undefined){if(d.setst)p.chart[view.tooth]=d.setst;else delete p.chart[view.tooth];save();render();return}
   if(d.done){const i=p.plan.find(x=>x.id===d.done);i.status='completed';i.doneDate=today();i.doneBy=me.name;
@@ -1813,10 +1870,13 @@ document.addEventListener('click',async e=>{
     case 'addToPlan':{const t=view.tooth,sf=p.surf[t]||{},ks=Object.keys(sf).filter(k=>['caries','sec','defect'].includes(sf[k].t));
       const sec=Object.values(sf).find(v=>v.t==='sec'),st=p.chart[t]||'';
       let proc=(MT[(sec&&sec.m)||view.mat||'comp']||MT.comp).proc,phase=3;
-      if(st==='ext'){proc='Extraction';phase=1}else if(st==='missing'){proc='Implant placement';phase=4}else if(st==='frac'&&!ks.length){proc='Crown – zirconia';phase=4}
-      view.tab='plan';view.addItem={tooth:String(t),surf:(st==='ext'||st==='missing')?'':surfStr(t,ks),proc,phase,fee:''};view.tooth=null;render();scrollTo(0,0);break;}
+      if(st==='ext'||st==='root'){proc='Extraction';phase=1}else if(st==='impacted'||(st==='partial'&&t%10===8)){proc='Surgical extraction';phase=1}else if(st==='missing'){proc=isPrim(t)?'Space maintainer':'Implant placement';phase=4}else if(st==='frac'&&!ks.length){proc=isPrim(t)?'Stainless steel crown (SSC)':'Crown – zirconia';phase=4}
+      else if(isPrim(t)&&p.rct[t]){proc='Pulpectomy (primary tooth)'}
+      if(['crown','abut','bridge'].includes(st)){const m=p.pros[t];const name={PFM:'PFM',ZR:'zirconia',EMX:'E-max',CER:'full ceramic',FM:'full metal'}[m];
+        proc=st==='crown'?(name?'Crown – '+name:'Crown – zirconia'):(name&&name!=='full ceramic'?'Bridge – '+name:'Bridge – PFM');phase=4}
+      view.tab='plan';view.addItem={tooth:String(t),surf:['ext','missing','root','impacted','partial','unerupted','crown','abut','bridge'].includes(st)?'':surfStr(t,ks),proc,phase,fee:''};view.tooth=null;render();scrollTo(0,0);break;}
     case 'askClearTooth':view.confirm='clearTooth';render();break;
-    case 'clearTooth':{const t=view.tooth;delete p.chart[t];delete p.surf[t];delete p.rct[t];delete p.toothNotes[t];view.confirm=null;save();render();toast('Tooth '+t+' cleared');break;}
+    case 'clearTooth':{const t=view.tooth;delete p.chart[t];delete p.surf[t];delete p.rct[t];delete p.toothNotes[t];delete p.imp[t];delete p.mob[t];delete p.pros[t];view.confirm=null;save();render();toast('Tooth '+t+' cleared');break;}
     case 'printRecord':printRecord(p,$('#pr-date').value||today(),'print');break;
     case 'saveRecord':printRecord(p,$('#pr-date').value||today(),'save');break;
     case 'printToday':printRecord(p,today(),'print');break;
@@ -1880,6 +1940,8 @@ document.addEventListener('input',e=>{
   if(el.dataset.mhd){p.mh.answers[el.dataset.mhd].d=el.value;save();return}
   if(el.dataset.mhf){p.mh[el.dataset.mhf]=el.type==='checkbox'?el.checked:el.value;save();return}
   if(el.dataset.rct){if(el.checked)p.rct[el.dataset.rct]=true;else delete p.rct[el.dataset.rct];save();render();return}
+  if(el.dataset.imp){const t=view.tooth;p.imp[t]=Object.assign({},p.imp[t]||{},{[el.dataset.imp]:el.value});save();render();return}
+  if(el.dataset.mob){if(el.value)p.mob[el.dataset.mob]=el.value;else delete p.mob[el.dataset.mob];save();render();return}
   if(el.dataset.tnote){p.toothNotes[el.dataset.tnote]=el.value;save();return}
   if(el.dataset.bpe!==undefined){p.bpe[+el.dataset.bpe]=el.value;if(!p.bpeDate)p.bpeDate=today();save();return}
   if(el.hasAttribute('data-bpedate')){p.bpeDate=el.value;save();return}

@@ -328,6 +328,18 @@ table.att td.num{font-variant-numeric:tabular-nums}
 .oldrow{display:grid;grid-template-columns:150px 80px minmax(0,1fr) 110px;gap:6px}
 @media(max-width:620px){.oldrow{grid-template-columns:1fr 1fr}.oldrow select{grid-column:1/-1}}
 .imp .seg{align-self:flex-start}
+:root{--t-imp:#8e3b5f;--t-pe:#c77d1a;--t-ue:#8a969b;--t-rr:#7a4b2a;--t-ven:#5b8def;}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--t-imp:#e08fb4;--t-pe:#f2b45e;--t-ue:#93a3a9;--t-rr:#d1a07a;--t-ven:#9dbcf5;}}
+:root[data-theme="dark"]{--t-imp:#e08fb4;--t-pe:#f2b45e;--t-ue:#93a3a9;--t-rr:#d1a07a;--t-ven:#9dbcf5;}
+.tooth svg{overflow:visible}
+.tooth.prim svg{max-width:34px}
+.tooth.prim{font-size:.68rem}
+.tooth .code{font-size:.6rem;white-space:normal;text-align:center;line-height:1.15;max-width:100%;overflow-wrap:anywhere}
+.opg-in.prim-only{grid-template-columns:repeat(5,minmax(0,1fr)) 8px repeat(5,minmax(0,1fr));min-width:380px;max-width:640px;margin:0 auto}
+.opg-in .rowlab{grid-column:1/-1;font-size:.68rem;color:var(--muted);text-align:center;letter-spacing:.04em;margin:2px 0 -2px}
+.impbox{display:flex;flex-direction:column;gap:8px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--paper)}
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+@media(max-width:620px){.grid3{grid-template-columns:1fr}}
 .toast.success{background:var(--ok);color:var(--paper)}
 .toast.error{background:var(--alert);color:var(--paper)}
 .shell{display:block}
