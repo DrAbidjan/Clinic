@@ -45,6 +45,7 @@ const MOB=['','I','II','III'];
 /* Crown / bridge / veneer materials */
 const PROS_MATS=[['PFM','Porcelain fused to metal (PFM)'],['ZR','Zirconia'],['EMX','E-max (lithium disilicate)'],['CER','Full ceramic / porcelain'],['FM','Full metal'],['AU','Gold'],['TMP','Acrylic / temporary']];
 const PM=Object.fromEntries(PROS_MATS);
+const MAT_FILL={PFM:'#efe6d2',ZR:'#f6f7f4',EMX:'#f3e8d6',CER:'#f8f2e6',FM:'#a3adb4',AU:'#e2b33c',TMP:'#f5b77a'};
 const PROS_ST=['crown','abut','bridge','veneer','implant'];
 /* Tooth sets (FDI). Primary (milk) teeth: quadrants 5–8, positions 1–5. */
 const PERM={UR:[18,17,16,15,14,13,12,11],UL:[21,22,23,24,25,26,27,28],LR:[48,47,46,45,44,43,42,41],LL:[31,32,33,34,35,36,37,38]};
@@ -1445,22 +1446,34 @@ function toothSVG(p,n,big){
   const sf=p.surf[n]||{},st=p.chart[n]||'',map=surfMap(n);
   const polys={top:'4,4 96,4 68,32 32,32',bottom:'4,96 96,96 68,68 32,68',left:'4,4 32,32 32,68 4,96',right:'96,4 68,32 68,68 96,96',center:'32,32 68,32 68,68 32,68'};
   const lp={top:[50,19],bottom:[50,86],left:[17,53],right:[83,53],center:[50,53]};
-  let s=`<svg viewBox="0 0 100 100" ${big?'role="group" aria-label="Surfaces of tooth '+n+'"':'aria-hidden="true"'}><g ${st==='missing'||st==='unerupted'||st==='root'?'opacity=".3"':''}>`;
+  let s=`<svg viewBox="0 0 100 100" ${big?'role="group" aria-label="Surfaces of tooth '+n+'"':'aria-hidden="true"'}><g ${['missing','unerupted','root'].includes(st)||(st==='bridge'&&!big)?'opacity=".3"':''}>`;
   for(const pos in polys){const k=map[pos],v=sf[k];
     s+=`<polygon points="${polys[pos]}" fill="${v?`var(${surfColor(v)})`:'var(--paper)'}" stroke="var(--ink)" stroke-width="${big?1.5:3.5}" stroke-linejoin="round"${big?` data-surf="${k}" tabindex="0" role="button" aria-label="${surfName(n,k)} surface${v?', '+(v.t==='fill'?(MT[v.m]||MT.comp).label+' filling':v.t):''}"`:''}/>`;}
   s+='</g>';
   const ov=w=>`pointer-events="none" stroke-width="${w}"`;
-  if(st==='crown')s+=`<rect x="3" y="3" width="94" height="94" fill="none" stroke="var(--t-crown)" ${ov(big?5:9)}/>`;
-  if(st==='implant')s+=`<rect x="3" y="3" width="94" height="94" fill="none" stroke="var(--t-implant)" ${ov(big?5:9)}/>`;
-  if(st==='bridge')s+=`<rect x="3" y="3" width="94" height="94" fill="none" stroke="var(--t-bridge)" stroke-dasharray="10 6" ${ov(big?5:9)}/>`;
-  if(st==='abut')s+=`<rect x="3" y="3" width="94" height="94" fill="none" stroke="var(--t-bridge)" ${ov(big?6:10)}/>`;
+  const mat=(p.pros||{})[n],mfill=MAT_FILL[mat]||'#efe6d2',op=big?.45:.92;
+  const cap=(stroke,dash)=>`<rect x="4" y="4" width="92" height="92" rx="14" fill="${mfill}" fill-opacity="${op}" stroke="${stroke}" ${dash?'stroke-dasharray="10 6"':''} ${ov(big?5:9)}/>`
+    +(mat==='PFM'&&!big?`<rect x="16" y="16" width="68" height="68" rx="9" fill="none" stroke="#7d868c" stroke-width="3" pointer-events="none"/>`:'');
+  if(st==='crown')s+=cap('var(--t-crown)');
+  if(st==='abut')s+=cap('var(--t-bridge)');
+  if(st==='bridge')s+=cap('var(--t-bridge)',true)+(big?'':`<path d="M30 58q20 14 40 0" fill="none" stroke="#7d868c" stroke-width="4" stroke-linecap="round" pointer-events="none"/>`);
+  const flip=x=>isUpper(n)?`<g transform="matrix(1 0 0 -1 0 100)">${x}</g>`:x;
+  if(st==='implant'){let ib='';
+    if(mat)ib+=`<rect x="4" y="4" width="92" height="38" rx="12" fill="${mfill}" fill-opacity="${op}" stroke="var(--t-implant)" ${ov(big?3:5)}/>`;
+    else if(!big)ib+=`<rect x="4" y="4" width="92" height="92" rx="14" fill="var(--paper)" fill-opacity=".9" pointer-events="none"/>`;
+    ib+=`<g pointer-events="none" opacity="${big?.75:1}"><rect x="36" y="${mat?44:16}" width="28" height="${mat?48:74}" rx="6" fill="var(--t-implant)"/>`
+      +[0,1,2,3,4,5].filter(i=>(mat?50:24)+i*12<(mat?90:88)).map(i=>`<path d="M33 ${(mat?50:24)+i*12}L67 ${(mat?56:30)+i*12}" stroke="var(--paper)" stroke-width="3.5" stroke-linecap="round"/>`).join('')
+      +`<rect x="30" y="${mat?40:12}" width="40" height="8" rx="3" fill="var(--t-implant)"/></g>`;
+    s+=flip(ib);
+  }
+  if(p.rct&&p.rct[n]&&!['implant','missing','bridge'].includes(st))s+=`<path d="M44 26V84M56 26V84" stroke="var(--t-rct)" stroke-linecap="round" ${ov(big?4:7)}/>`;
   if(!big&&(st==='abut'||st==='bridge')){const isB=x=>x&&['abut','bridge'].includes(p.chart[x]);const [l,r]=neighbours(n);
     s+=`<path d="M${isB(l)?-70:20} 50H${isB(r)?170:80}" stroke="var(--t-bridge)" ${ov(8)}/>`}
-  if(st==='veneer'){const y0=map.top==='B'?3:79;s+=`<rect x="3" y="${y0}" width="94" height="18" rx="3" fill="var(--t-ven)" opacity=".55" ${ov(0)}/>`}
+  if(st==='veneer'){const top=map.top==='B';s+=`<polygon points="${top?'4,4 96,4 68,32 32,32':'4,96 96,96 68,68 32,68'}" fill="${MAT_FILL[mat]||'#f8f2e6'}" fill-opacity="${big?.5:.95}" stroke="var(--t-ven)" stroke-linejoin="round" ${ov(big?4:8)}/>`}
   if(st==='impacted')s+=`<rect x="3" y="3" width="94" height="94" fill="none" stroke="var(--t-imp)" stroke-dasharray="8 6" ${ov(big?5:9)}/><path d="M22 78L78 22M78 22H56M78 22V44" fill="none" stroke="var(--t-imp)" stroke-linecap="round" stroke-linejoin="round" ${ov(big?5:9)}/>`;
   if(st==='partial')s+=`<rect x="3" y="3" width="94" height="94" fill="none" stroke="var(--t-pe)" stroke-dasharray="8 6" ${ov(big?5:9)}/><path d="M6 50H94" stroke="var(--t-pe)" ${ov(big?5:9)}/>`;
   if(st==='unerupted')s+=`<rect x="3" y="3" width="94" height="94" fill="none" stroke="var(--t-ue)" stroke-dasharray="3 7" stroke-linecap="round" ${ov(big?5:9)}/>`;
-  if(st==='root')s+=`<path d="M26 22L42 86M74 22L58 86M20 22H80" fill="none" stroke="var(--t-rr)" stroke-linecap="round" ${ov(big?6:11)}/>`;
+  if(st==='root')s+=flip(`<path d="M26 22L42 86M74 22L58 86M20 22H80" fill="none" stroke="var(--t-rr)" stroke-linecap="round" ${ov(big?6:11)}/>`);
   if(st==='frac')s+=`<polyline points="20,8 45,40 35,55 70,92" fill="none" stroke="var(--t-frac)" ${ov(big?4:8)}/>`;
   if(st==='missing'||st==='ext')s+=`<path d="M10 10L90 90M90 10L10 90" fill="none" stroke="var(${st==='ext'?'--t-ext':'--t-missing'})" stroke-linecap="round" ${ov(big?5:10)}/>`;
   if(big)for(const pos in lp){const k=map[pos];s+=`<text x="${lp[pos][0]}" y="${lp[pos][1]}" text-anchor="middle" dominant-baseline="middle">${surfLabel(n,k)}</text>`}
@@ -1534,7 +1547,7 @@ function chartTab(p){
   else if(dent==='mixed')rows=`${rowHtml(PERM.UR,PERM.UL,false)}<span class="rowlab">Primary</span>${rowHtml(PRIM.UR,PRIM.UL,false,3,3)}<span class="occ"></span>${rowHtml(PRIM.LR,PRIM.LL,true,3,3)}<span class="rowlab">Permanent</span>${rowHtml(PERM.LR,PERM.LL,true)}`;
   else rows=`${rowHtml(PERM.UR,PERM.UL,false)}<span class="occ"></span>${rowHtml(PERM.LR,PERM.LL,true)}`;
   const legend=[...MODES.filter(m=>m.col).map(m=>[m.label,`background:var(${m.col})`]),...MATS.map(m=>[m.label,`background:var(${m.col})`]),
-    ['Crown (CR)','border:2.5px solid var(--t-crown)'],['Implant (IMPL)','border:2.5px solid var(--t-implant)'],['Impacted (IMP)','border:2.5px dashed var(--t-imp)'],['Partially erupted (PE)','border:2.5px dashed var(--t-pe)'],['Unerupted (UE)','border:2.5px dotted var(--t-ue)'],['Retained root (RR)','background:var(--t-rr);opacity:.6'],['Veneer (VEN)','background:var(--t-ven)'],['Bridge abutment (ABT) / pontic (PON)','border:2.5px solid var(--t-bridge);border-style:solid dashed'],['Missing (MIS) / extraction (XLA)','background:linear-gradient(45deg,transparent 40%,var(--t-ext) 40% 60%,transparent 60%)'],['RCT = root canal treated',''],['M1–M3 = mobility grade',''],['Has X-ray','background:#2a9d8f;border-radius:50%']];
+    ['Crown (CR)','background:#efe6d2;border:2.5px solid var(--t-crown)'],['Implant (IMPL)','background:linear-gradient(90deg,transparent 35%,var(--t-implant) 35% 65%,transparent 65%)'],['Impacted (IMP)','border:2.5px dashed var(--t-imp)'],['Partially erupted (PE)','border:2.5px dashed var(--t-pe)'],['Unerupted (UE)','border:2.5px dotted var(--t-ue)'],['Retained root (RR)','background:var(--t-rr);opacity:.6'],['Veneer (VEN)','background:var(--t-ven)'],['Bridge abutment (ABT) / pontic (PON)','border:2.5px solid var(--t-bridge);border-style:solid dashed'],['Missing (MIS) / extraction (XLA)','background:linear-gradient(45deg,transparent 40%,var(--t-ext) 40% 60%,transparent 60%)'],['Root canal treated (RCT)','background:linear-gradient(90deg,transparent 30%,var(--t-rct) 30% 42%,transparent 42% 58%,var(--t-rct) 58% 70%,transparent 70%)'],['M1–M3 = mobility grade',''],['Has X-ray','background:#2a9d8f;border-radius:50%']];
   const sum=t?summaryOf(p,t):[];
   return `<section class="panel">
     <div class="row"><h2>Dental chart</h2><span class="spacer"></span>
