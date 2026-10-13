@@ -18,8 +18,10 @@ const fmtDate=d=>{if(!d)return '';const [y,m,dd]=String(d).slice(0,10).split('-'
 const fmtTime=t=>{if(!t)return '';const d=new Date(t);return fmtDate(d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()))+' '+pad(d.getHours())+':'+pad(d.getMinutes())};
 const money=n=>'Rs '+Math.round(Number(n)||0).toLocaleString('en-US');
 const age=dob=>{if(!dob)return '';const b=new Date(dob),n=new Date();let a=n.getFullYear()-b.getFullYear();if(n<new Date(n.getFullYear(),b.getMonth(),b.getDate()))a--;return a};
-const lsGet=k=>{try{return localStorage.getItem(k)}catch(e){return null}};
-const lsSet=(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}};
+/* Online and offline apps can live on the same website address, so each keeps its own small settings. */
+const LS_NS=window.__LOCAL_DB?'offline:':'';
+const lsGet=k=>{try{return localStorage.getItem(LS_NS+k)}catch(e){return null}};
+const lsSet=(k,v)=>{try{localStorage.setItem(LS_NS+k,v)}catch(e){}};
 
 /* ---------- clinical reference data ---------- */
 const STATUS=[
@@ -1442,7 +1444,41 @@ function mhTab(p){
     <div class="row"><button class="btn primary" data-act="mhDate">Mark as reviewed today</button><span class="small muted">Last reviewed: ${mh.date?fmtDate(mh.date):'never'}</span></div>
   </section>`;
 }
+/* Side-view (anatomical) drawings for teeth that are not fully in the mouth. Drawn crown-up; upper teeth are flipped. */
+const SIDE_ST=['partial','impacted','unerupted','root'];
+const TOOTH_PATH={
+  molar:'M30 48C26 36 26 26 30 20Q36 15 42 20Q50 14 58 20Q64 15 70 20C74 26 74 36 70 48L68 50C68 64 66 78 61 86Q58 88 56 84C55 74 53 62 50 56C47 62 45 74 44 84Q42 88 39 86C34 78 32 64 32 50Z',
+  premolar:'M34 48C30 36 31 26 36 20Q43 13 50 18Q57 13 64 20C69 26 70 36 66 48C65 62 60 76 52 88Q50 90 48 88C40 76 35 62 34 48Z',
+  canine:'M37 46C34 34 38 22 50 10C62 22 66 34 63 46C62 62 57 80 51 92Q50 94 49 92C43 80 38 62 37 46Z',
+  incisor:'M38 46C35 34 36 22 40 14L60 14C64 22 65 34 62 46C61 62 57 78 51 90Q50 92 49 90C43 78 39 62 38 46Z'};
+function toothType(n){const pos=n%10;if(pos<=2)return 'incisor';if(pos===3)return 'canine';if(isPrim(n))return 'molar';return pos<=5?'premolar':'molar'}
+const ANG_DEG={Mesioangular:45,Distoangular:-45,Horizontal:90,Vertical:0,Inverted:180,Buccoangular:0,Linguoangular:0};
+function sideView(p,n,big){
+  const st=p.chart[n];const id='cv'+n+(big?'b':'');const imp=(p.imp||{})[n]||{};
+  const mesialRight=[1,4,5,8].includes(Math.floor(n/10));
+  const tooth=(extra)=>`<path d="${TOOTH_PATH[toothType(n)]}" fill="var(--enamel)" stroke="var(--ink)" stroke-width="${big?1.6:3}" stroke-linejoin="round" ${extra||''}/>`;
+  const G=42;
+  let scene=`<rect x="0" y="${G}" width="100" height="${100-G}" fill="var(--bone)"/>`;
+  if(st==='partial'){
+    scene+=`<g transform="translate(0 16)">${tooth()}</g>`
+      +`<rect x="0" y="${G-6}" width="100" height="14" fill="var(--gum)" opacity=".85"/><rect x="0" y="${G+8}" width="100" height="${100-G-8}" fill="var(--bone)" opacity=".55"/>`;
+  }else if(st==='unerupted'){
+    scene+=`<g transform="translate(50 72) scale(.68) translate(-50 -50)">${tooth()}</g><rect x="0" y="${G}" width="100" height="${100-G}" fill="var(--bone)" opacity=".45"/>`
+      +`<rect x="0" y="${G-6}" width="100" height="8" fill="var(--gum)"/>`;
+  }else if(st==='impacted'){
+    const a=(ANG_DEG[imp.ang]||0)*(mesialRight?1:-1);
+    scene+=`<g transform="translate(50 ${Math.abs(a)===90?71:73}) rotate(${a}) scale(${Math.abs(a)===90?.62:.7}) translate(-50 -50)">${tooth()}</g><rect x="0" y="${G}" width="100" height="${100-G}" fill="var(--bone)" opacity=".42"/>`
+      +`<rect x="0" y="${G-6}" width="100" height="8" fill="var(--gum)"/>`;
+  }else if(st==='root'){
+    scene+=`<clipPath id="${id}r"><rect x="0" y="52" width="100" height="48"/></clipPath><g clip-path="url(#${id}r)">${tooth()}</g>`
+      +`<path d="M31 52L36 47L41 53L47 46L53 54L59 47L64 53L69 48" fill="none" stroke="var(--t-rr)" stroke-width="${big?2:3.5}" stroke-linejoin="round"/>`
+      +`<rect x="0" y="${G-6}" width="100" height="8" fill="var(--gum)"/>`;
+  }
+  if(isUpper(n))scene=`<g transform="matrix(1 0 0 -1 0 100)">${scene}</g>`;
+  return `<svg viewBox="0 0 100 100" aria-hidden="true" class="sideview"><clipPath id="${id}"><rect x="2" y="2" width="96" height="96" rx="10"/></clipPath><g clip-path="url(#${id})">${scene}</g><rect x="2" y="2" width="96" height="96" rx="10" fill="none" stroke="var(--t-${{partial:'pe',impacted:'imp',unerupted:'ue',root:'rr'}[st]})" stroke-width="${big?2.5:5}" ${st==='impacted'||st==='partial'?'stroke-dasharray="8 6"':st==='unerupted'?'stroke-dasharray="3 6" stroke-linecap="round"':''}/></svg>`;
+}
 function toothSVG(p,n,big){
+  if(!big&&SIDE_ST.includes(p.chart[n]))return sideView(p,n,false);
   const sf=p.surf[n]||{},st=p.chart[n]||'',map=surfMap(n);
   const polys={top:'4,4 96,4 68,32 32,32',bottom:'4,96 96,96 68,68 32,68',left:'4,4 32,32 32,68 4,96',right:'96,4 68,32 68,68 96,96',center:'32,32 68,32 68,68 32,68'};
   const lp={top:[50,19],bottom:[50,86],left:[17,53],right:[83,53],center:[50,53]};
@@ -1508,7 +1544,7 @@ function editor(p,t,mode,mat,sum){
   return `<div class="panel" style="background:var(--bg)" id="editor">
     <div class="row"><h2>Tooth ${t}</h2><span class="small muted">${toothName(t)}</span><span class="spacer"></span><button class="btn small" data-act="closeTooth">Done</button></div>
     <div class="sedit">
-      <div class="big">${toothSVG(p,t,true)}<p class="small muted" style="text-align:center;margin:6px 0 0">Tap a surface to mark it</p></div>
+      <div class="big">${SIDE_ST.includes(cur)?`<div class="sidebig">${sideView(p,t,true)}<p class="small muted" style="text-align:center;margin:4px 0 8px">Side view · ${esc(ST[cur].label.toLowerCase())}${(cur==='impacted'||cur==='partial')&&(p.imp[t]||{}).ang?' · '+esc(p.imp[t].ang.toLowerCase()):''}</p></div>`:''}${toothSVG(p,t,true)}<p class="small muted" style="text-align:center;margin:6px 0 0">Tap a surface to mark it</p></div>
       <div style="display:flex;flex-direction:column;gap:10px;min-width:0">
         <h3>1 · Finding</h3>
         <div class="chips">${MODES.map(m=>`<button class="chip ${mode===m.k?'on':''}" data-mode="${m.k}">${m.col?`<i style="background:var(${m.col})"></i>`:''}${m.label}</button>`).join('')}</div>
@@ -1825,7 +1861,7 @@ document.addEventListener('click',async e=>{
         lsSet('clinicId','');toast('Clinic deleted');if(chan)sb.removeChannel(chan);chan=null;clinic=null;await afterLogin();break;}
       const problem=await window.__LOCAL_DB.checkDeleteCode(clinic.id,code);
       if(problem){toast(problem+' Nothing was deleted.');break;}
-      await window.__LOCAL_DB.wipeAll();try{localStorage.removeItem('lastFullBackup');localStorage.removeItem('clinicId')}catch(e){}
+      await window.__LOCAL_DB.wipeAll();try{localStorage.removeItem(LS_NS+'lastFullBackup');localStorage.removeItem(LS_NS+'clinicId')}catch(e){}
       toast('Clinic deleted');setTimeout(()=>location.reload(),700);break;}
     case 'saveDaily':{const bl=dailyBlob;if(!bl)break;deliverFile(bl,('Backup_'+clinic.name+'_'+today()+'.json').replace(/[^\w.\-]+/g,'_'),'save').then(ok=>{if(ok){lsSet('lastFullBackup',String(Date.now()));dailyBlob=null;toast('Backup saved');render()}},()=>toast('Could not save the backup'));break;}
     case 'camStart':{const k=$('#xr-kind');if(k&&!/photo/i.test(k.value)){k.value='Microscope photo'}view.xrKind=k?k.value:view.xrKind;await startCamera(view.camId);break;}
