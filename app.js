@@ -1446,36 +1446,65 @@ function mhTab(p){
 }
 /* Side-view (anatomical) drawings for teeth that are not fully in the mouth. Drawn crown-up; upper teeth are flipped. */
 const SIDE_ST=['partial','impacted','unerupted','root'];
-const TOOTH_PATH={
-  molar:'M30 48C26 36 26 26 30 20Q36 15 42 20Q50 14 58 20Q64 15 70 20C74 26 74 36 70 48L68 50C68 64 66 78 61 86Q58 88 56 84C55 74 53 62 50 56C47 62 45 74 44 84Q42 88 39 86C34 78 32 64 32 50Z',
-  premolar:'M34 48C30 36 31 26 36 20Q43 13 50 18Q57 13 64 20C69 26 70 36 66 48C65 62 60 76 52 88Q50 90 48 88C40 76 35 62 34 48Z',
-  canine:'M37 46C34 34 38 22 50 10C62 22 66 34 63 46C62 62 57 80 51 92Q50 94 49 92C43 80 38 62 37 46Z',
-  incisor:'M38 46C35 34 36 22 40 14L60 14C64 22 65 34 62 46C61 62 57 78 51 90Q50 92 49 90C43 78 39 62 38 46Z'};
+const TOOTH={
+  molar:{crown:'M23 40C19 30 19 18 23 12Q29 5 36.5 10.5Q43.5 4 50 9.5Q56.5 4 63.5 10.5Q71 5 77 12C81 18 81 30 77 40Q50 45 23 40Z',
+    root:'M26 37L74 37C73 50 71 62 67 74C65 84 63 92 59 95Q55 97 54.5 90C54.5 78 53.5 66 50 58C46.5 66 45.5 78 45.5 90Q45 97 41 95C37 92 35 84 33 74C29 62 27 50 26 37Z',
+    pulp:'M39 33Q44 29 50 31Q56 29 61 33L61 42C61 56 61 72 58.5 88L57.5 88C57.5 72 56.5 58 53 51L47 51C43.5 58 42.5 72 42.5 88L41.5 88C39 72 39 56 37 42Z',cej:40},
+  premolar:{crown:'M29 41C25 30 26 18 31 12Q40 3 50 9Q60 3 69 12C74 18 75 30 71 41Q50 45 29 41Z',
+    root:'M33 38L67 38C66 56 61 76 53 94Q50 98 47 94C39 76 34 56 33 38Z',
+    pulp:'M45 30Q50 25 55 30L55 42C55 58 53 76 50.6 90L49.4 90C47 76 45 58 44 42Z',cej:41},
+  canine:{crown:'M32 43C29 30 34 17 50 3C66 17 71 30 68 43Q50 47 32 43Z',
+    root:'M35 40L65 40C64 60 58 80 52 97Q50 99.5 48 97C42 80 36 60 35 40Z',
+    pulp:'M47 28L50 21L53 28L53.5 44C53 62 52 80 50.6 94L49.4 94C48 80 47 62 46 44Z',cej:43},
+  incisor:{crown:'M34 43C31 30 33 16 36 5Q50 2 64 5C67 16 69 30 66 43Q50 47 34 43Z',
+    root:'M37 40L63 40C62 58 57 76 52 94Q50 97 48 94C43 76 38 58 37 40Z',
+    pulp:'M46.5 24L53.5 24L54 44C54 60 52 76 50.6 90L49.4 90C48 76 46 60 45 44Z',cej:43}};
 function toothType(n){const pos=n%10;if(pos<=2)return 'incisor';if(pos===3)return 'canine';if(isPrim(n))return 'molar';return pos<=5?'premolar':'molar'}
 const ANG_DEG={Mesioangular:45,Distoangular:-45,Horizontal:90,Vertical:0,Inverted:180,Buccoangular:0,Linguoangular:0};
 function sideView(p,n,big){
   const st=p.chart[n];const id='cv'+n+(big?'b':'');const imp=(p.imp||{})[n]||{};
-  const mesialRight=[1,4,5,8].includes(Math.floor(n/10));
-  const tooth=(extra)=>`<path d="${TOOTH_PATH[toothType(n)]}" fill="var(--enamel)" stroke="var(--ink)" stroke-width="${big?1.6:3}" stroke-linejoin="round" ${extra||''}/>`;
-  const G=42;
-  let scene=`<rect x="0" y="${G}" width="100" height="${100-G}" fill="var(--bone)"/>`;
+  const mesialRight=[1,4,5,8].includes(Math.floor(n/10));const mes=mesialRight?1:-1;
+  const T=TOOTH[toothType(n)];const sw=big?.9:1.6;const ink='#5a4632';
+  // one realistic tooth: dentine root, enamel crown, pulp, CEJ
+  const tooth=(o={})=>{const cut=o.cut?` clip-path="url(#${id}k)"`:'';
+    return `<g${cut}><path d="${T.root}" fill="url(#${id}d)" stroke="${ink}" stroke-width="${sw}" stroke-linejoin="round"/>`
+      +(o.noCrown?'':`<path d="${T.crown}" fill="url(#${id}e)" stroke="${ink}" stroke-width="${sw}" stroke-linejoin="round"/>`)
+      +`<path d="${T.pulp}" fill="#dc7486" opacity="${o.noCrown?.95:.78}"/>`
+      +(o.noCrown?'':`<path d="M30 ${T.cej-12}Q34 ${T.cej-20} 40 ${T.cej-22}" fill="none" stroke="#fff" stroke-width="${big?2:3}" stroke-linecap="round" opacity=".7"/>`)+`</g>`};
+  const place=(cx,cy,s,rot,inner)=>`<g transform="translate(${cx} ${cy}) rotate(${rot||0}) scale(${s}) translate(-50 -50)">${inner}</g>`;
+  const neighbour=(cx)=>`<g opacity=".8">${place(cx,48,.74,0,`<path d="${TOOTH.molar.root}" fill="#e3d3ae" stroke="${ink}" stroke-width="${sw}"/><path d="${TOOTH.molar.crown}" fill="#f4f1ea" stroke="${ink}" stroke-width="${sw}"/>`)}</g>`;
+  const follicle=(cx,cy,s,rot)=>place(cx,cy,s,rot,`<ellipse cx="50" cy="${T.cej-16}" rx="${toothType(n)==='molar'?33:24}" ry="23" fill="#3b2a1d" opacity=".28"/>`);
+  const G=40;// gingival margin
+  const defs=`<defs><linearGradient id="${id}e" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset=".6" stop-color="#f2efe7"/><stop offset="1" stop-color="#d9d3c5"/></linearGradient>`
+    +`<linearGradient id="${id}d" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#dcc79a"/><stop offset=".45" stop-color="#f1e4c4"/><stop offset="1" stop-color="#cdb684"/></linearGradient>`
+    +`<linearGradient id="${id}g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f3a3ad"/><stop offset="1" stop-color="#d9727f"/></linearGradient>`
+    +`<linearGradient id="${id}b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f0dcb6"/><stop offset="1" stop-color="#d9b98a"/></linearGradient>`
+    +`<pattern id="${id}t" width="9" height="9" patternUnits="userSpaceOnUse"><circle cx="2" cy="3" r="1.4" fill="#b8925f" opacity=".45"/><circle cx="6.5" cy="7" r="1" fill="#b8925f" opacity=".35"/><circle cx="7" cy="1.5" r=".7" fill="#b8925f" opacity=".3"/></pattern>`
+    +`<clipPath id="${id}k"><rect x="-100" y="${T.cej+3}" width="300" height="200"/></clipPath></defs>`;
+  const bone=(top)=>`<path d="M0 ${top}Q25 ${top-3} 50 ${top}T100 ${top}V100H0Z" fill="url(#${id}b)"/><path d="M0 ${top}Q25 ${top-3} 50 ${top}T100 ${top}V100H0Z" fill="url(#${id}t)"/><path d="M0 ${top}Q25 ${top-3} 50 ${top}T100 ${top}" fill="none" stroke="#fff6e2" stroke-width="${big?1.5:2.5}" opacity=".8"/>`;
+  const gum=(top,bot,a)=>`<path d="M0 ${top+4}Q12 ${top-2} 25 ${top+2}Q38 ${top+6} 50 ${top}Q62 ${top-4} 75 ${top+2}Q88 ${top+6} 100 ${top+1}V${bot}H0Z" fill="url(#${id}g)" opacity="${a||1}"/>`;
+  let scene=`<rect width="100" height="100" fill="#20262b"/>`+bone(G+8);
   if(st==='partial'){
-    scene+=`<g transform="translate(0 16)">${tooth()}</g>`
-      +`<rect x="0" y="${G-6}" width="100" height="14" fill="var(--gum)" opacity=".85"/><rect x="0" y="${G+8}" width="100" height="${100-G-8}" fill="var(--bone)" opacity=".55"/>`;
+    // crown half through the gum, root in bone, operculum over the distal part
+    scene+=place(50,58,.78,0,tooth())+gum(G,G+10,.92)
+      +(toothType(n)!=='molar'?'':`<path d="M${50-mes*24} ${G+1}Q${50-mes*6} ${G-12} ${50+mes*6} ${G-4}L${50+mes*6} ${G+4}Z" fill="url(#${id}g)" opacity=".9"/>`);
   }else if(st==='unerupted'){
-    scene+=`<g transform="translate(50 72) scale(.68) translate(-50 -50)">${tooth()}</g><rect x="0" y="${G}" width="100" height="${100-G}" fill="var(--bone)" opacity=".45"/>`
-      +`<rect x="0" y="${G-6}" width="100" height="8" fill="var(--gum)"/>`;
+    scene=`<rect width="100" height="100" fill="#20262b"/>`+bone(G+6)+follicle(50,79,.54,0)+place(50,79,.54,0,tooth())+gum(G,G+8);
   }else if(st==='impacted'){
-    const a=(ANG_DEG[imp.ang]||0)*(mesialRight?1:-1);
-    scene+=`<g transform="translate(50 ${Math.abs(a)===90?71:73}) rotate(${a}) scale(${Math.abs(a)===90?.62:.7}) translate(-50 -50)">${tooth()}</g><rect x="0" y="${G}" width="100" height="${100-G}" fill="var(--bone)" opacity=".42"/>`
-      +`<rect x="0" y="${G-6}" width="100" height="8" fill="var(--gum)"/>`;
+    const a=(ANG_DEG[imp.ang]||0)*mes;const h=Math.abs(a)===90;
+    const cy=h?78:76,s=h?.52:.56;
+    scene=`<rect width="100" height="100" fill="#20262b"/>`+bone(G+6)
+      +(toothType(n)==='molar'?neighbour(50+mes*60):'')
+      +follicle(50,cy,s,a)+place(50,cy,s,a,tooth())+gum(G,G+8);
   }else if(st==='root'){
-    scene+=`<clipPath id="${id}r"><rect x="0" y="52" width="100" height="48"/></clipPath><g clip-path="url(#${id}r)">${tooth()}</g>`
-      +`<path d="M31 52L36 47L41 53L47 46L53 54L59 47L64 53L69 48" fill="none" stroke="var(--t-rr)" stroke-width="${big?2:3.5}" stroke-linejoin="round"/>`
-      +`<rect x="0" y="${G-6}" width="100" height="8" fill="var(--gum)"/>`;
+    // crown gone, root left in bone with a broken, decayed top
+    const y=T.cej+3;
+    scene+=place(50,56,.82,0,tooth({cut:1,noCrown:1})
+      +`<path d="M${T===TOOTH.molar?27:34} ${y}L${T===TOOTH.molar?33:39} ${y-5}L40 ${y+1}L46 ${y-6}L52 ${y+1}L58 ${y-5}L63 ${y}L${T===TOOTH.molar?69:66} ${y-4}L${T===TOOTH.molar?73:66} ${y}Z" fill="#9c7448" stroke="${ink}" stroke-width="${sw}" stroke-linejoin="round"/>`)
+      +gum(G,G+9,.9);
   }
   if(isUpper(n))scene=`<g transform="matrix(1 0 0 -1 0 100)">${scene}</g>`;
-  return `<svg viewBox="0 0 100 100" aria-hidden="true" class="sideview"><clipPath id="${id}"><rect x="2" y="2" width="96" height="96" rx="10"/></clipPath><g clip-path="url(#${id})">${scene}</g><rect x="2" y="2" width="96" height="96" rx="10" fill="none" stroke="var(--t-${{partial:'pe',impacted:'imp',unerupted:'ue',root:'rr'}[st]})" stroke-width="${big?2.5:5}" ${st==='impacted'||st==='partial'?'stroke-dasharray="8 6"':st==='unerupted'?'stroke-dasharray="3 6" stroke-linecap="round"':''}/></svg>`;
+  return `<svg viewBox="0 0 100 100" aria-hidden="true" class="sideview">${defs}<clipPath id="${id}"><rect x="2" y="2" width="96" height="96" rx="10"/></clipPath><g clip-path="url(#${id})">${scene}</g><rect x="2" y="2" width="96" height="96" rx="10" fill="none" stroke="var(--t-${{partial:'pe',impacted:'imp',unerupted:'ue',root:'rr'}[st]})" stroke-width="${big?2.5:5}" ${st==='impacted'||st==='partial'?'stroke-dasharray="8 6"':st==='unerupted'?'stroke-dasharray="3 6" stroke-linecap="round"':''}/></svg>`;
 }
 function toothSVG(p,n,big){
   if(!big&&SIDE_ST.includes(p.chart[n]))return sideView(p,n,false);
