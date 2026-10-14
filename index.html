@@ -540,6 +540,10 @@ html[data-bg=photo] .main{background:linear-gradient(color-mix(in srgb,var(--bg)
 .soundgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
 .aespill{background:#f3e3f7;color:#7a3a8c}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .aespill{background:#3a2442;color:#e6b8f2}}
+.salform{display:flex;flex-direction:column;gap:10px;padding:12px;border:1.5px solid var(--accent);border-radius:12px;background:var(--accent-soft)}
+.salform .chip{cursor:pointer}
+.salform .chip:has(input:checked){border-color:var(--accent);background:var(--paper);color:var(--accent);font-weight:600}
+.salform .chip input{margin:0}
 </style>
 </head>
 <body>
