@@ -546,8 +546,13 @@ html[data-bg=photo] .main{background:linear-gradient(color-mix(in srgb,var(--bg)
 <div id="app"></div>
 <div class="toast" id="toast" hidden></div>
 <script>window.__OWNER_TEST=(function(){try{return sessionStorage.getItem('ownerTest')==='1'}catch(e){return false}})();</script>
-<script>if(window.__OWNER_TEST)document.write('<script src="local-db.js"><\/script>');else document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"><\/script><script src="config.js"><\/script>');</script>
+<!-- One page for both versions: if config.js exists (online repository) the app uses Supabase; if not (offline repository) it saves on this device. -->
+<script src="config.js"></script>
+<script>window.__ONLINE=!!(window.CLINIC_CONFIG&&!window.__OWNER_TEST);
+if(window.__ONLINE)document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"><\/script>');
+else document.write('<script src="local-db.js"><\/script>');</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/4.2.1/jspdf.umd.min.js"></script>
 <script src="app.js"></script>
+<script>if(!window.CLINIC_CONFIG&&'serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost')){navigator.serviceWorker.register('sw.js').catch(()=>{})}</script>
 </body>
 </html>
