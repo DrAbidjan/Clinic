@@ -7,7 +7,7 @@
 const CONFIG=window.CLINIC_CONFIG||{SUPABASE_URL:'',SUPABASE_ANON_KEY:''};
 const LOCAL=!!window.__LOCAL_DB;
 /* Seller details shown on the Activation screen. Fill these in (keep the quote marks). */
-const APP_VERSION='15 Oct 2026 · direct printing';
+const APP_VERSION='16 Oct 2026 · neutral treatment names';
 const SELLER={name:'',whatsapp:'03113124533',price:'Rs 25,000'};
 
 const $=s=>document.querySelector(s);
@@ -1246,9 +1246,9 @@ function xrViewer(){
 const isAes=p=>!!p&&p.kind==='aesthetic';
 const AES_GROUPS=[
  ['Consultation',['Aesthetic consultation','Skin analysis','Hair loss consultation','Review / follow-up','Touch-up']],
- ['Injectables',['Botox – forehead lines','Botox – frown lines','Botox – crow\'s feet','Botox – full face','Botox – jaw (masseter) slimming','Botox – underarm sweating','Filler – lips','Filler – cheeks','Filler – under-eye (tear trough)','Filler – jawline','Filler – chin','Filler – nose (non-surgical nose job)','Filler – nasolabial folds','Skin booster','Polynucleotides (PN / PDRN)','Exosomes – face','PRP – face','Fat-dissolving injection (double chin)','Mesotherapy – face','Thread lift (PDO threads)']],
+ ['Injectables',['Botulinum toxin (anti-wrinkle) – forehead lines','Botulinum toxin (anti-wrinkle) – frown lines','Botulinum toxin (anti-wrinkle) – crow\'s feet','Botulinum toxin (anti-wrinkle) – full face','Botulinum toxin (anti-wrinkle) – jaw (masseter) slimming','Botulinum toxin (anti-wrinkle) – underarm sweating','Filler – lips','Filler – cheeks','Filler – under-eye (tear trough)','Filler – jawline','Filler – chin','Filler – nose (non-surgical nose job)','Filler – nasolabial folds','Skin booster','Polynucleotides (PN / PDRN)','Exosomes – face','PRP – face','Fat-dissolving injection (double chin)','Mesotherapy – face','Thread lift (PDO threads)']],
  ['Laser & devices',['Laser hair removal – face','Laser hair removal – underarms','Laser hair removal – arms','Laser hair removal – legs','Laser hair removal – bikini','Laser hair removal – full body','Carbon laser peel','Fractional CO2 laser','Laser skin resurfacing','Q-switched laser – pigmentation / melasma','Laser tattoo removal','IPL photofacial','Radiofrequency (RF) skin tightening','RF microneedling','HIFU skin lifting','Laser – spider veins','Cryolipolysis (fat freezing)','Body contouring / cavitation']],
- ['Facials & peels',['Hydra facial (hydradermabrasion)','Medi-facial','Acne facial & extraction','Chemical peel – light','Chemical peel – medium','Microdermabrasion','Microneedling','Dermaplaning','Skin brightening facial','Oxygen facial']],
+ ['Facials & peels',['Hydradermabrasion facial','Medi-facial','Acne facial & extraction','Chemical peel – light','Chemical peel – medium','Microdermabrasion','Microneedling','Dermaplaning','Skin brightening facial','Oxygen facial']],
  ['Skin treatments',['Acne treatment','Acne scar treatment','Pigmentation / melasma treatment','Under-eye dark circle treatment','Stretch mark treatment','Scar treatment','Mole removal','Skin tag removal','Wart removal','Milia removal','Rosacea treatment','Wrinkle treatment']],
  ['Drips & supplements',['IV drip – vitamin','IV drip – glutathione (brightening)','IV drip – hydration']],
  ['Hair',['Hair transplant – FUE','Hair transplant – DHI','Beard transplant','Eyebrow transplant','PRP – hair','GFC – hair (growth factor concentrate)','Exosomes – hair','Mesotherapy – hair','Scalp micropigmentation','Hair loss treatment (medicines)']],
@@ -1261,7 +1261,7 @@ const phasesFor=p=>isAes(p)?AES_PHASES:PHASES;
 const procOptions=(p,sel)=>isAes(p)?AES_GROUPS.map(([g,l])=>`<optgroup label="${esc(g)}">${l.map(o=>`<option ${o===sel?'selected':''}>${esc(o)}</option>`).join('')}</optgroup>`).join(''):PROCS.map(o=>`<option ${o===sel?'selected':''}>${esc(o)}</option>`).join('');
 const AES_MH=[
  ['a_preg','Pregnant, trying to get pregnant, or breastfeeding'],
- ['a_isotret','Isotretinoin (Accutane / Roaccutane) in the last 6 months'],
+ ['a_isotret','Isotretinoin (acne tablets) in the last 6 months'],
  ['a_thin','Blood thinners or aspirin; bleeds or bruises easily'],
  ['a_keloid','Keloid or thick (raised) scars'],
  ['a_herpes','Cold sores (herpes)'],
@@ -1272,8 +1272,8 @@ const AES_MH=[
  ['a_photo','Light-sensitive skin or photosensitising medicines'],
  ['a_tan','Recent sun tan, sunbed or self-tan (last 4 weeks)'],
  ['a_infect','Active skin infection, open wounds or active acne in the area'],
- ['a_neuro','Muscle or nerve disease (e.g. myasthenia gravis) – important for Botox'],
- ['a_prevfill','Previous fillers, Botox or threads (which, where, when)'],
+ ['a_neuro','Muscle or nerve disease (e.g. myasthenia gravis) – important for botulinum toxin'],
+ ['a_prevfill','Previous fillers, botulinum toxin or threads (which, where, when)'],
  ['a_prevsurg','Previous cosmetic surgery or hair transplant'],
  ['a_hep','Hepatitis B or C, HIV'],
  ['a_allergy','Allergies (lidocaine / local anaesthetic, hyaluronic acid, latex, eggs, other)'],
@@ -2103,7 +2103,7 @@ function paperGuide(p){
   const steps=[['details','1','Details','Name, mobile, old file no. and first visit date',!!(p.first||'').trim()],
     ['mh','2','Medical history','As written in the file',!!(p.mh&&p.mh.date)],
     ...(isAes(p)?[]:[['chart','3','Chart','Teeth as found at the last visit',Object.keys(p.chart||{}).length+Object.keys(p.surf||{}).length>0]]),
-    ['plan','4','Past treatments',isAes(p)?'Add each one (laser, Botox, PRP…) with its date in "Done on"':'Add each one (RCT, scaling…) with its date in "Done on"',done>0],
+    ['plan','4','Past treatments',isAes(p)?'Add each one (laser, anti-wrinkle injections, PRP…) with its date in "Done on"':'Add each one (RCT, scaling…) with its date in "Done on"',done>0],
     ['pay','5','Past payments','With the date they were paid',false],
     ['xrays','6',isAes(p)?'Photos':'Photo of the file',isAes(p)?'Before/after photos and the paper file':'Optional – save the paper as "Old record (scan)"',false]];
   return `<section class="paperguide" aria-label="Old patient guide">
@@ -2570,8 +2570,8 @@ function rctTplPanel(p){if(!view.rct||view.rct.pid!==p.id){view.rct={pid:p.id};r
     <div class="grid3">
       <label class="f"><span>Irrigation</span><input id="rct-irr" value="${esc(r.irr??'NaOCl 2.5%, EDTA 17%, saline')}"></label>
       <label class="f"><span>Intracanal medicament (when indicated)</span><input id="rct-med" value="${esc(r.med??'Calcium hydroxide')}"></label>
-      <label class="f"><span>Temporary restoration</span><input id="rct-temp" value="${esc(r.temp??'Secure temporary – GIC / Cavit')}"></label>
-      <label class="f"><span>Obturation</span><input id="rct-obt" value="${esc(r.obt??'')}" placeholder="e.g. Gutta-percha, lateral condensation, AH Plus"></label>
+      <label class="f"><span>Temporary restoration</span><input id="rct-temp" value="${esc(r.temp??'Secure temporary – GIC / temporary filling material')}"></label>
+      <label class="f"><span>Obturation</span><input id="rct-obt" value="${esc(r.obt??'')}" placeholder="e.g. Gutta-percha, lateral condensation, resin sealer"></label>
       <label class="f"><span>Next visit</span><input id="rct-next" value="${esc(r.next??'')}" placeholder="e.g. Obturation in 1 week"></label>
     </div>
     <div class="row"><button type="button" class="btn small primary" data-act="rctInsert">Insert into note</button><span class="small muted">The canal lengths are also kept for this tooth for the next visit.</span></div></div>`;}
