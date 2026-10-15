@@ -548,6 +548,12 @@ html[data-bg=photo] .main{background:linear-gradient(color-mix(in srgb,var(--bg)
 .salmeth .chip:has(input:checked){border-color:var(--accent);background:var(--accent-soft);color:var(--accent);font-weight:600}
 .salmeth .chip input{margin:0}
 
+/* update notice */
+.updbar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:60;width:min(640px,calc(100% - 24px));display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:12px 14px;border-radius:14px;background:#0B2227;color:#F4F6F4;box-shadow:0 8px 30px rgba(0,0,0,.3);border:1px solid #1f5f6b}
+.updbar .updtxt{flex:1;min-width:200px;display:flex;flex-direction:column;gap:2px}.updbar .updtxt span{font-size:.82rem;color:#9FBFBB}
+.updbar .btn{background:#123A41;color:#F4F6F4;border-color:#1f5f6b}.updbar .btn.primary{background:linear-gradient(90deg,#0f9b8e,#22b573);border-color:transparent}
+.updbar .updnotes{flex-basis:100%;font-size:.88rem;color:#D7EDEA}.updbar .updnotes ul{margin:4px 0 0;padding-left:20px}
+.updbar.done{border-color:#22b573}
 /* online booking */
 .onlinebadge{align-self:center;display:inline-flex;align-items:center;gap:4px;padding:2px 12px;border-radius:999px;font-size:.75rem;font-weight:600;letter-spacing:.02em;color:#fff;background:linear-gradient(90deg,#0f9b8e,#22b573);box-shadow:0 0 0 3px rgba(34,181,115,.18);width:max-content}
 .appt .ai>.onlinebadge{align-self:flex-start}

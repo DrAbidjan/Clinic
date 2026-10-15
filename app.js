@@ -250,6 +250,30 @@ function soundsPanel(){
 document.addEventListener('pointerdown',e=>{const el=e.target.closest('button,.btn,[data-surf],a.btn,select');if(!el||el.disabled)return;
   Sound.play(el.classList.contains('tab')||el.dataset.tab||el.dataset.home?'tab':'click')},true);
 document.addEventListener('toggle',e=>{if(e.target&&e.target.classList&&e.target.classList.contains('bkhist'))view.bkHistOpen=e.target.open},true);
+/* ---- Update notice: version.json (uploaded with each update) tells every open computer that a new version is ready ---- */
+const Upd={info:null,shown:false,
+  async check(){try{const r=await fetch('version.json?t='+Date.now(),{cache:'no-store'});if(!r.ok)return;const j=await r.json();if(!j||!j.version)return;Upd.info=j;
+    if(j.version!==APP_VERSION)Upd.bar();else Upd.whatsNew()}catch(e){}},
+  notes(){const n=(Upd.info&&Upd.info.notes)||[];return n.length?'<ul>'+n.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>':''},
+  bar(){if(Upd.shown)return;Upd.shown=true;const d=document.createElement('div');d.className='updbar';d.setAttribute('role','status');
+    d.innerHTML=`<div class="updtxt"><b>A new version of the app is ready</b><span>${esc(Upd.info.date||'')} – save your work, then tap Update.</span></div>
+      <button class="btn small" data-upd="notes">What's new</button><button class="btn small primary" data-upd="go">Update now</button><button class="btn small" data-upd="later" aria-label="Later">Later</button><div class="updnotes" hidden>${Upd.notes()}</div>`;
+    document.body.appendChild(d);try{Sound.play('message')}catch(e){}
+    d.addEventListener('click',async e=>{const b=e.target.closest('[data-upd]');if(!b)return;const k=b.dataset.upd;
+      if(k==='notes'){const n=d.querySelector('.updnotes');n.hidden=!n.hidden;return}
+      if(k==='later'){d.remove();Upd.shown=false;Upd.snooze=Date.now();return}
+      if(k==='go'){if(typeof dirty!=='undefined'&&dirty.size){try{await flush()}catch(err){}}
+        try{const rs=await navigator.serviceWorker?.getRegistrations?.();if(rs)await Promise.all(rs.map(r=>r.update().catch(()=>{})))}catch(err){}
+        location.reload()}})},
+  whatsNew(){let seen='';try{seen=localStorage.getItem('seenVersion')||''}catch(e){}
+    if(seen===APP_VERSION)return;try{localStorage.setItem('seenVersion',APP_VERSION)}catch(e){}
+    if(!seen||!Upd.notes())return; // first use: no pop-up
+    const d=document.createElement('div');d.className='updbar done';d.innerHTML=`<div class="updtxt"><b>The app was updated</b><span>${esc(APP_VERSION)}</span></div><button class="btn small" data-upd="close">OK</button><div class="updnotes">${Upd.notes()}</div>`;
+    document.body.appendChild(d);d.addEventListener('click',e=>{if(e.target.closest('[data-upd]'))d.remove()})}
+};
+setTimeout(()=>Upd.check(),4000);
+setInterval(()=>{if(!Upd.shown&&(!Upd.snooze||Date.now()-Upd.snooze>36e5))Upd.check()},10*60*1000);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&!Upd.shown&&(!Upd.snooze||Date.now()-Upd.snooze>36e5))Upd.check()});
 function toastKind(m){if(/not |wrong|could not|invalid|expired|only |first|ended|cannot|can't|doesn't|failed|too many|no internet|match/i.test(m))return 'error';
   if(/saved|added|created|booked|activated|copied|restored|deleted|changed|imported|ready|completed|joined|removed|cleared|reviewed|thank/i.test(m))return 'success';return ''}
 function toast(m){const k=toastKind(m);if(k)Sound.play(k);const t=$('#toast');t.textContent=m;t.className='toast '+k;t.hidden=false;clearTimeout(toast._t);toast._t=setTimeout(()=>t.hidden=true,2400)}
