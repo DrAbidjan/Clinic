@@ -7,7 +7,7 @@
 const CONFIG=window.CLINIC_CONFIG||{SUPABASE_URL:'',SUPABASE_ANON_KEY:''};
 const LOCAL=!!window.__LOCAL_DB;
 /* Seller details shown on the Activation screen. Fill these in (keep the quote marks). */
-const APP_VERSION='15 Oct 2026 · holidays clear, appointments tab';
+const APP_VERSION='15 Oct 2026 · appointments bar, update notice';
 const SELLER={name:'',whatsapp:'03113124533',price:'Rs 25,000'};
 
 const $=s=>document.querySelector(s);
@@ -2104,7 +2104,7 @@ function patientView(){
   const p=P();if(!p){view.screen='list';return listView();}
   migrate(p);
   const al=alertsOf(p),ms=mhStatus(p);
-  const tabs=isAes(p)?[['details','Details'],['mh','Medical history'],['plan','Treatments'],['appts','Appointments'],['pay','Payments'],['notes','Clinical notes'],['xrays','Photos']]:[['details','Details'],['mh','Medical history'],['chart','Chart'],['plan','Treatment plan'],['appts','Appointments'],['pay','Payments'],['notes','Clinical notes'],['xrays','X-rays']];
+  const tabs=isAes(p)?[['details','Details'],['mh','Medical history'],['plan','Treatments'],['pay','Payments'],['notes','Clinical notes'],['xrays','Photos']]:[['details','Details'],['mh','Medical history'],['chart','Chart'],['plan','Treatment plan'],['pay','Payments'],['notes','Clinical notes'],['xrays','X-rays']];
   if(isAes(p)&&view.tab==='chart')view.tab='details';
   let body={details:detailsTab,mh:mhTab,chart:chartTab,plan:planTab,pay:payTab,notes:notesTab,xrays:xrayTab,appts:apptTab}[view.tab](p);
   if(isAcct()&&['details','mh','chart','plan'].includes(view.tab))body=`<fieldset class="ro" disabled>${body}</fieldset>`;
@@ -2117,7 +2117,8 @@ function patientView(){
     <div class="row"><span class="nm">${esc(p.first)} ${esc(p.last)}</span><span class="spacer"></span><span class="small muted">${p.dob?fmtDate(p.dob)+' · '+age(p.dob)+' yrs':''}</span></div>
     <div class="alerts">${al.map(a=>`<span class="pill alert">⚠ ${esc(a)}</span>`).join('')}<span class="pill ${ms.cls}">${ms.t}</span></div>
     ${p._upd?`<div class="small muted">Last saved ${fmtTime(p._upd)} by ${esc(p._by===user.id?'you':nameOf(p._by))}</div>`:''}
-    <div class="tabs" role="tablist">${tabs.map(([k,l])=>`<button class="tab ${k==='appts'?'tab-appts':''}" role="tab" aria-selected="${view.tab===k}" data-tab="${k}">${k==='appts'?icon('calendar')+' ':''}${l}</button>`).join('')}</div>
+    <button class="apptbar" data-tab="appts" aria-pressed="${view.tab==='appts'}">${icon('calendar')}<span><b>Appointments</b><small>${view.tab==='appts'?"This patient's appointments – book a new one below":'Book or see appointments for this patient'}</small></span>${view.tab==='appts'?'':'<em>Open →</em>'}</button>
+    <div class="tabs" role="tablist">${tabs.map(([k,l])=>`<button class="tab" role="tab" aria-selected="${view.tab===k}" data-tab="${k}">${l}</button>`).join('')}</div>
   </div>
   ${body}
   ${xrView?xrViewer():''}`;

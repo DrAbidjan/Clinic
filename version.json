@@ -1,11 +1,12 @@
 {
-  "version": "15 Oct 2026 · holidays clear, appointments tab",
+  "version": "15 Oct 2026 · appointments bar, update notice",
   "date": "15 October 2026",
   "notes": [
     "Online booking: patients book a free time from your QR code or link",
     "Holidays: patients see when the clinic is closed and can book after the holiday",
     "All online bookings are kept – declined ones can be restored",
     "Message the patient on WhatsApp or SMS after accepting or declining",
-    "Appointments tab moved next to Payments and highlighted"
+    "Appointments now has its own bar at the top of every patient file",
+    "You are told when a new version of the app is ready"
   ]
 }

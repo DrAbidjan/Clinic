@@ -554,15 +554,20 @@ html[data-bg=photo] .main{background:linear-gradient(color-mix(in srgb,var(--bg)
 .updbar .btn{background:#123A41;color:#F4F6F4;border-color:#1f5f6b}.updbar .btn.primary{background:linear-gradient(90deg,#0f9b8e,#22b573);border-color:transparent}
 .updbar .updnotes{flex-basis:100%;font-size:.88rem;color:#D7EDEA}.updbar .updnotes ul{margin:4px 0 0;padding-left:20px}
 .updbar.done{border-color:#22b573}
+/* appointments bar in the patient file */
+.apptbar{display:flex;align-items:center;gap:12px;width:100%;margin:2px 0 6px;padding:12px 16px;border-radius:14px;border:1px solid rgba(15,155,142,.45);background:linear-gradient(90deg,rgba(15,155,142,.16),rgba(34,181,115,.12));color:var(--ink);text-align:left;cursor:pointer;min-height:56px;font:inherit}
+.apptbar svg{width:24px;height:24px;color:#0f9b8e;flex:none}
+.apptbar span{flex:1;display:flex;flex-direction:column;gap:1px}.apptbar b{font-size:1.02rem;color:#0d7a6f}.apptbar small{color:var(--muted);font-size:.8rem}
+.apptbar em{font-style:normal;font-weight:600;color:#0d7a6f;font-size:.9rem}
+.apptbar:hover{box-shadow:0 2px 12px rgba(34,181,115,.25)}
+.apptbar[aria-pressed="true"]{background:linear-gradient(90deg,#0f9b8e,#22b573);border-color:transparent;box-shadow:0 3px 14px rgba(34,181,115,.35)}
+.apptbar[aria-pressed="true"] svg,.apptbar[aria-pressed="true"] b,.apptbar[aria-pressed="true"] small,.apptbar[aria-pressed="true"] em{color:#fff}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .apptbar:not([aria-pressed="true"]) b,:root:not([data-theme="light"]) .apptbar:not([aria-pressed="true"]) em{color:#7fd3cb}}
+:root[data-theme="dark"] .apptbar:not([aria-pressed="true"]) b,:root[data-theme="dark"] .apptbar:not([aria-pressed="true"]) em{color:#7fd3cb}
 /* online booking */
 .onlinebadge{align-self:center;display:inline-flex;align-items:center;gap:4px;padding:2px 12px;border-radius:999px;font-size:.75rem;font-weight:600;letter-spacing:.02em;color:#fff;background:linear-gradient(90deg,#0f9b8e,#22b573);box-shadow:0 0 0 3px rgba(34,181,115,.18);width:max-content}
 .appt .ai>.onlinebadge{align-self:flex-start}
-.tab.tab-appts{color:#0d7a6f;background:linear-gradient(90deg,rgba(15,155,142,.14),rgba(34,181,115,.14));border:1px solid rgba(15,155,142,.35);display:inline-flex;align-items:center;gap:6px;font-weight:600}
-.tab.tab-appts svg{width:16px;height:16px}
-.tab.tab-appts[aria-selected="true"]{color:#fff;background:linear-gradient(90deg,#0f9b8e,#22b573);border-color:transparent;box-shadow:0 2px 10px rgba(34,181,115,.35)}
-:root[data-theme="dark"] .tab.tab-appts:not([aria-selected="true"]){color:#7fd3cb}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .tab.tab-appts:not([aria-selected="true"]){color:#7fd3cb}}
-.bknotify{border-left:4px solid var(--accent)}.bknotify.declined{border-left-color:var(--alert)}
+:root[data-theme="dark"] @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .bknotify{border-left:4px solid var(--accent)}.bknotify.declined{border-left-color:var(--alert)}
 .bkhist summary{cursor:pointer;padding:2px 0}
 .bkhist-list{display:flex;flex-direction:column;gap:8px;margin-top:10px;max-height:520px;overflow:auto}
 .bkrow{display:grid;grid-template-columns:76px 1fr;gap:10px;padding:10px;border:1px solid var(--line);border-radius:12px;background:var(--paper)}
