@@ -7,7 +7,7 @@
 const CONFIG=window.CLINIC_CONFIG||{SUPABASE_URL:'',SUPABASE_ANON_KEY:''};
 const LOCAL=!!window.__LOCAL_DB;
 /* Seller details shown on the Activation screen. Fill these in (keep the quote marks). */
-const APP_VERSION='15 Oct 2026 · booking holidays and history';
+const APP_VERSION='15 Oct 2026 · holidays clear, appointments tab';
 const SELLER={name:'',whatsapp:'03113124533',price:'Rs 25,000'};
 
 const $=s=>document.querySelector(s);
@@ -871,7 +871,7 @@ function apptCard(a,showPatient){
   return `<div class="appt ${esc(a.status)}">
     <div class="tm"><b>${showPatient?hhmm(a.starts_at):fmtDate(dayOf(a.starts_at))}</b><span>${showPatient?a.duration+' min':hhmm(a.starts_at)}</span></div>
     <div class="ai">
-      ${showPatient&&p?`<button class="linkbtn pn" data-open="${a.patient_id}">${esc(nm)}</button>`:showPatient?`<b>${esc(nm)}</b>`:''}${showPatient&&isAes(p)?' <span class="pill aespill">Aesthetic</span>':''}${/^Booked online/.test(a.note||'')?' <span class="pill info">Booked online</span>':''}
+      ${showPatient&&p?`<button class="linkbtn pn" data-open="${a.patient_id}">${esc(nm)}</button>`:showPatient?`<b>${esc(nm)}</b>`:''}${showPatient&&isAes(p)?' <span class="pill aespill">Aesthetic</span>':''}${/^Booked online/.test(a.note||'')?' <span class="onlinebadge">Booked online</span>':''}
       <span class="small">${esc(a.reason||'Appointment')}${dn?' · '+esc(dn.name):''}${a.note?' · '+esc(a.note):''}</span>
       <span class="alerts"><span class="pill ${st[1]}">${st[0]}</span>${a.reminded_at?`<span class="pill ok">Reminder opened ${fmtTime(a.reminded_at)}</span>`:(upcoming?'<span class="pill warn">No reminder yet</span>':'')}${p&&!phone?'<span class="pill alert">No mobile number</span>':''}</span>
       ${upcoming&&phone?`<div class="row"><button class="btn small primary" data-sms="${a.id}">SMS reminder</button><button class="btn small wa" data-wa="${a.id}">WhatsApp</button></div>`:''}
@@ -901,7 +901,7 @@ async function loadBookings(day){
 function bookingCard(b){
   const wa=String(b.phone).replace(/[^0-9]/g,'').replace(/^0/,'92');
   return `<div class="appt online"><div class="tm"><b>${hhmm(b.starts_at)}</b><span>${fmtDate(dayOf(b.starts_at))}</span></div>
-    <div class="ai"><div class="row" style="gap:8px"><b>${esc(b.name)}</b><span class="pill info">Online booking</span></div>
+    <div class="ai"><div class="row" style="gap:8px"><b>${esc(b.name)}</b><span class="onlinebadge">Online booking</span></div>
       <div class="small muted">${esc(b.phone)}${b.reason?' · '+esc(b.reason):''} · ${b.duration} min</div>
       <div class="row">${readOnly()?'':`<button class="btn small primary" data-bkaccept="${b.id}">Accept – add to appointments</button><button class="btn small" data-bkdecline="${b.id}">Decline</button>`}
         <a class="btn small" href="https://wa.me/${esc(wa)}" target="_blank" rel="noopener">WhatsApp</a><a class="btn small" href="tel:${esc(b.phone)}">Call</a></div></div></div>`;
@@ -964,7 +964,7 @@ function bookingSettingsPanel(){
       <div class="bkhours">${BK_DAYS.map(([d,l])=>{const h=(c.hours||{})[d];return `<div class="bkday"><label class="row small" style="gap:8px;min-width:140px"><input type="checkbox" data-bkopen="${d}" ${h?'checked':''} style="width:20px;height:20px"> ${l}</label>
         <input type="time" id="bk-from-${d}" value="${h?h[0]:'09:00'}" ${h?'':'disabled'} aria-label="${l} opens"><span class="small muted">to</span><input type="time" id="bk-to-${d}" value="${h?h[1]:'17:00'}" ${h?'':'disabled'} aria-label="${l} closes"></div>`}).join('')}</div>
       <div class="bkoff"><b class="small">Holidays – clinic closed</b>
-        <div class="row" style="gap:8px;align-items:flex-end"><label class="f" style="flex:1;min-width:140px"><span>From</span><input type="date" id="bk-offfrom"></label><label class="f" style="flex:1;min-width:140px"><span>To (optional)</span><input type="date" id="bk-offto"></label><button type="button" class="btn small" data-act="bkOffAdd">Add holiday</button></div>
+        <div class="row" style="gap:8px;align-items:flex-end"><label class="f" style="flex:1;min-width:140px"><span>From *</span><input type="text" id="bk-offfrom" placeholder="Choose date" onfocus="this.type='date'" onblur="if(!this.value)this.type='text'"></label><label class="f" style="flex:1;min-width:140px"><span>To *</span><input type="text" id="bk-offto" placeholder="Choose date" onfocus="this.type='date'" onblur="if(!this.value)this.type='text'"></label><button type="button" class="btn small primary" data-act="bkOffAdd">Add holiday</button><button type="button" class="btn small danger" data-act="bkOffClear">Clear all holidays</button></div>
         <input type="hidden" id="bk-off" value="${esc((c.off||[]).join(','))}"><div id="bkOffList" class="row" style="gap:6px">${bkOffChips(c.off||[])}</div>
         <label class="row small" style="gap:8px"><input type="checkbox" id="bk-holext" ${c.holext===false?'':'checked'} style="width:20px;height:20px"> Add holiday days to the booking period, (patients can still book after the holiday – e.g. 30 days + 5 holiday days = 35 days)</label>
         <label class="f"><span>Message for patients on holidays (optional)</span><input type="text" id="bk-offnote" maxlength="120" value="${esc(c.offNote||'')}" placeholder="e.g. Closed for Eid ul-Adha – open again on Monday"></label></div>
@@ -999,6 +999,10 @@ async function bookingPoster(){
   await deliverFile(doc.output('blob'),('Booking_QR_'+clinic.name+'.pdf').replace(/[^\w.\-]+/g,'_'),'save');
 }
 function bkOffChips(list){const t=today();const l=[...list].filter(x=>x>=t).sort();return l.length?l.map(x=>`<span class="pill info bkoffchip">${fmtDate(x)} <button type="button" class="linkbtn" data-bkoffdel="${x}" aria-label="Remove ${fmtDate(x)}">✕</button></span>`).join(''):'<span class="small muted">No holidays added</span>'}
+async function bkOffSave(){ // holidays are saved at once, so they can't be forgotten
+  const off=String($('#bk-off').value||'').split(',').filter(x=>/^\d{4}-\d{2}-\d{2}$/.test(x)&&x>=today()).sort();
+  const cfg=Object.assign({},booking.cfg,{off});const {error}=await sb.from('clinics').update({booking:cfg}).eq('id',clinic.id);
+  if(error){toast(friendly(error));return false}booking.cfg.off=off;return true}
 function bkOffSet(list){const el=$('#bk-off');if(!el)return;const u=[...new Set(list)].filter(x=>/^\d{4}-\d{2}-\d{2}$/.test(x)).sort();el.value=u.join(',');$('#bkOffList').innerHTML=bkOffChips(u)}
 const newBookingCode=()=>{const a='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';return [...crypto.getRandomValues(new Uint8Array(10))].map(x=>a[x%a.length]).join('')};
 function apptsView(){
@@ -2076,7 +2080,7 @@ function patientView(){
   const p=P();if(!p){view.screen='list';return listView();}
   migrate(p);
   const al=alertsOf(p),ms=mhStatus(p);
-  const tabs=isAes(p)?[['details','Details'],['mh','Medical history'],['plan','Treatments'],['pay','Payments'],['notes','Clinical notes'],['xrays','Photos'],['appts','Appointments']]:[['details','Details'],['mh','Medical history'],['chart','Chart'],['plan','Treatment plan'],['pay','Payments'],['notes','Clinical notes'],['xrays','X-rays'],['appts','Appointments']];
+  const tabs=isAes(p)?[['details','Details'],['mh','Medical history'],['plan','Treatments'],['appts','Appointments'],['pay','Payments'],['notes','Clinical notes'],['xrays','Photos']]:[['details','Details'],['mh','Medical history'],['chart','Chart'],['plan','Treatment plan'],['appts','Appointments'],['pay','Payments'],['notes','Clinical notes'],['xrays','X-rays']];
   if(isAes(p)&&view.tab==='chart')view.tab='details';
   let body={details:detailsTab,mh:mhTab,chart:chartTab,plan:planTab,pay:payTab,notes:notesTab,xrays:xrayTab,appts:apptTab}[view.tab](p);
   if(isAcct()&&['details','mh','chart','plan'].includes(view.tab))body=`<fieldset class="ro" disabled>${body}</fieldset>`;
@@ -2089,7 +2093,7 @@ function patientView(){
     <div class="row"><span class="nm">${esc(p.first)} ${esc(p.last)}</span><span class="spacer"></span><span class="small muted">${p.dob?fmtDate(p.dob)+' · '+age(p.dob)+' yrs':''}</span></div>
     <div class="alerts">${al.map(a=>`<span class="pill alert">⚠ ${esc(a)}</span>`).join('')}<span class="pill ${ms.cls}">${ms.t}</span></div>
     ${p._upd?`<div class="small muted">Last saved ${fmtTime(p._upd)} by ${esc(p._by===user.id?'you':nameOf(p._by))}</div>`:''}
-    <div class="tabs" role="tablist">${tabs.map(([k,l])=>`<button class="tab" role="tab" aria-selected="${view.tab===k}" data-tab="${k}">${l}</button>`).join('')}</div>
+    <div class="tabs" role="tablist">${tabs.map(([k,l])=>`<button class="tab ${k==='appts'?'tab-appts':''}" role="tab" aria-selected="${view.tab===k}" data-tab="${k}">${k==='appts'?icon('calendar')+' ':''}${l}</button>`).join('')}</div>
   </div>
   ${body}
   ${xrView?xrViewer():''}`;
@@ -2543,7 +2547,7 @@ document.addEventListener('submit',async e=>{
       await window.__LOCAL_DB.wipeAll();try{Object.keys(localStorage).filter(k=>k.startsWith('offline:')).forEach(k=>localStorage.removeItem(k))}catch(e){}
       alert('All clinics on this device were erased. The app will start fresh.');location.href=location.pathname;return}
     if(f.id==='bookingForm'){const hours={};for(const [d] of BK_DAYS){const on=document.querySelector('[data-bkopen="'+d+'"]');if(on&&on.checked){const a=$('#bk-from-'+d).value,z=$('#bk-to-'+d).value;if(!a||!z||a>=z)throw new Error('Check the opening hours – closing time must be after opening time.');hours[d]=[a,z]}}
-      if($('#bk-offfrom').value){const a0=$('#bk-offfrom').value,z0=$('#bk-offto').value||a0;const cur=String($('#bk-off').value||'').split(',').filter(Boolean);let dt=new Date(a0+'T12:00:00');let n=0;while(dt<=new Date(z0+'T12:00:00')&&n<62){cur.push(dt.toISOString().slice(0,10));dt.setDate(dt.getDate()+1);n++}bkOffSet(cur)}
+      if($('#bk-offfrom').value&&$('#bk-offto').value){const a0=$('#bk-offfrom').value,z0=$('#bk-offto').value;const cur=String($('#bk-off').value||'').split(',').filter(Boolean);let dt=new Date(a0+'T12:00:00');let n=0;while(dt<=new Date(z0+'T12:00:00')&&n<62){cur.push(dt.toISOString().slice(0,10));dt.setDate(dt.getDate()+1);n++}bkOffSet(cur)}
       const off=[...new Set(String($('#bk-off').value||'').split(',').map(x=>x.trim()).filter(x=>/^\d{4}-\d{2}-\d{2}$/.test(x)&&x>=today()))].sort();
       const cfg={enabled:$('#bk-on').checked,slot:+$('#bk-slot').value,chairs:+$('#bk-chairs').value,days:+$('#bk-days').value,tz:300,hours,off,offNote:String($('#bk-offnote').value||'').trim().slice(0,120),holext:$('#bk-holext').checked};
       if(cfg.enabled&&!Object.keys(hours).length)throw new Error('Tick at least one opening day.');
@@ -2718,11 +2722,12 @@ document.addEventListener('click',async e=>{
   if(d.bknotify){view.bkNotify={id:d.bknotify,kind:d.kind};render();window.scrollTo(0,0);return}
   if(d.bkrestore){const {error}=await sb.from('online_bookings').update({status:'new'}).eq('id',d.bkrestore);if(error){toast(friendly(error));return}
     view.bkHistOpen=true;await loadBookings(view.day||today());render();toast('Booking restored – it is waiting again');return}
-  if(d.act==='bkOffAdd'){const a=$('#bk-offfrom').value,z=$('#bk-offto').value||a;if(!a){toast('Choose the holiday date first');return}if(z<a){toast('"To" must be after "From"');return}
+  if(d.act==='bkOffClear'){if(!String($('#bk-off').value||'')){toast('There are no holidays to clear');return}if(!confirm('Clear all holidays? Patients can book those days again.'))return;bkOffSet([]);if(await bkOffSave())toast('All holidays cleared');return}
+  if(d.act==='bkOffAdd'){const a=$('#bk-offfrom').value,z=$('#bk-offto').value;if(!a||!z){toast('Choose both dates: From and To (for one day, choose the same date twice)');return}if(z<a){toast('"To" must be after "From"');return}
     const cur=String($('#bk-off').value||'').split(',').filter(Boolean);let dt=new Date(a+'T12:00:00');const end=new Date(z+'T12:00:00');let n=0;
     while(dt<=end&&n<62){cur.push(dt.toISOString().slice(0,10));dt.setDate(dt.getDate()+1);n++}
-    bkOffSet(cur);$('#bk-offfrom').value='';$('#bk-offto').value='';toast(n===1?'Holiday added – tap Save booking settings':n+' holiday days added – tap Save booking settings');return}
-  if(d.bkoffdel){bkOffSet(String($('#bk-off').value||'').split(',').filter(x=>x&&x!==d.bkoffdel));return}
+    bkOffSet(cur);['#bk-offfrom','#bk-offto'].forEach(q=>{const e=$(q);e.value='';e.type='text'});if(await bkOffSave())toast(n===1?'Holiday saved – patients see it now':n+' holiday days saved – patients see them now');return}
+  if(d.bkoffdel){bkOffSet(String($('#bk-off').value||'').split(',').filter(x=>x&&x!==d.bkoffdel));if(await bkOffSave())toast('Holiday removed');return}
   if(d.act==='bkCopy'){try{await navigator.clipboard.writeText(bookingLink());toast('Link copied')}catch(e){prompt('Copy this link:',bookingLink())}return}
   if(d.act==='bkShare'){const l=bookingLink();if(navigator.share){navigator.share({title:clinic.name+' – book an appointment',text:'Book your appointment at '+clinic.name+':',url:l}).catch(()=>{})}else window.open('https://wa.me/?text='+encodeURIComponent('Book your appointment at '+clinic.name+': '+l),'_blank');return}
   if(d.act==='bkPoster'){try{await bookingPoster()}catch(err){toast(friendly(err))}return}
