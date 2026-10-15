@@ -7,7 +7,7 @@
 const CONFIG=window.CLINIC_CONFIG||{SUPABASE_URL:'',SUPABASE_ANON_KEY:''};
 const LOCAL=!!window.__LOCAL_DB;
 /* Seller details shown on the Activation screen. Fill these in (keep the quote marks). */
-const APP_VERSION='14 Oct 2026 · online booking with QR';
+const APP_VERSION='14 Oct 2026 · salary payment method & receipt';
 const SELLER={name:'',whatsapp:'03113124533',price:'Rs 25,000'};
 
 const $=s=>document.querySelector(s);
@@ -330,9 +330,6 @@ function subscribe(){
     if(view.screen==='appts'||(view.screen==='patient'&&view.tab==='appts'))refreshAppts();
   }).on('postgres_changes',{event:'*',schema:'public',table:'payments',filter:'clinic_id=eq.'+clinic.id},()=>{
     if(view.screen==='patient'&&view.tab==='pay'&&view.pid)loadPayments(view.pid).then(()=>softRender()).catch(()=>{});
-  }).on('postgres_changes',{event:'*',schema:'public',table:'online_bookings',filter:'clinic_id=eq.'+clinic.id},pl=>{
-    const b=pl.new;loadBookings(view.day||today()).then(()=>softRender());
-    if(pl.eventType==='INSERT'&&b){Sound.play('arrival');const t=$('#toast');t.textContent='New online booking: '+b.name+' – '+fmtDate(dayOf(b.starts_at))+' at '+hhmm(b.starts_at);t.className='toast success';t.hidden=false;clearTimeout(toast._t);toast._t=setTimeout(()=>t.hidden=true,7000)}
   }).on('postgres_changes',{event:'INSERT',schema:'public',table:'messages',filter:'clinic_id=eq.'+clinic.id},pl=>{
     const m=pl.new;if(!m||msgs.some(x=>x.id===m.id))return;msgs.push(m);
     if(forMe(m)&&m.sender!==user.id){Sound.play(m.kind==='arrived'?'arrival':'message');
@@ -385,7 +382,7 @@ async function openClinic(m){
   if(dirty.size)await flush();
   clinic=m.clinics;me={user_id:user.id,name:m.name,role:m.role,pmdc:m.pmdc||''};lsSet('clinicId',clinic.id);
   view.screen='loading';render();
-  try{db={patients:[]};await Promise.all([loadPatients(),loadTeam(),loadBranding(),loadBookingCfg()]);}
+  try{db={patients:[]};await Promise.all([loadPatients(),loadTeam(),loadBranding()]);}
   catch(e){view.screen='error';view.msg={t:'err',m:friendly(e)};render();return}
   subscribe();
   setTimeout(prepareDaily,1500);startAttendance();loadMessages().then(()=>{const n=unreadCount();if(n){render();setTimeout(()=>toast('You have '+n+' new message'+(n>1?'s':'')+' – open Messages'),400)}});
@@ -447,7 +444,7 @@ function buildRecord(p,date){
   const open=p.plan.filter(i=>i.status!=='completed');
   if(showBal()){const b=billOf(p);sec('Payment summary');
     const ln=(k,v,bold)=>{ensure(6);doc.setFont('helvetica',bold?'bold':'normal');doc.setTextColor(...INK);doc.text(k,M,y);doc.text(v,M+70,y,{align:'right'});y+=5.4};
-    ln('Total treatment',money(b.total));if(b.plannedTotal)ln('  of which done so far',money(b.charges));if(b.disc)ln('Discount','- '+money(b.disc));ln('Paid',money(b.paid));ln(b.due<0?'Advance (credit)':'Due',money(Math.abs(b.due)),true);doc.setFont('helvetica','normal');y+=1}
+    ln('Treatment done',money(b.charges));if(b.disc)ln('Discount','- '+money(b.disc));ln('Paid',money(b.paid));ln(b.balance<0?'Advance (credit)':'Remaining balance',money(Math.abs(b.balance)),true);doc.setFont('helvetica','normal');y+=1}
   sec('Treatment still planned');
   if(open.length)open.sort((a,b)=>a.phase-b.phase).forEach(i=>para('Phase '+i.phase+'   '+(i.tooth?i.tooth+'  ':'')+i.proc+(i.surf?' ('+i.surf+')':'')+'   '+money(i.fee)));
   else para('Treatment plan complete.');
@@ -610,8 +607,8 @@ function importPanel(){
 
 /* ---------- payments, discounts, invoice and receipt ---------- */
 let payList=[],payLoading=false;
-const showBal=()=>true;
-const balToggle=()=>'';
+const showBal=()=>lsGet('printBal')!=='off';
+const balToggle=()=>`<label class="row small" style="gap:8px"><input type="checkbox" id="print-bal" ${showBal()?'checked':''} style="width:20px;height:20px"> Show amount paid and remaining balance on printouts</label>`;
 const PAY_METHODS=['Cash','Card','Bank transfer','JazzCash / Easypaisa','Panel / company','Sehat Card','Cheque','Other'];
 const refLabel=m=>m==='Panel / company'?'Panel company name':m==='Card'?'Card last 4 digits or slip no.':m==='Bank transfer'||m==='JazzCash / Easypaisa'?'Transaction ID':m==='Cheque'?'Cheque number':m==='Sehat Card'?'Sehat Card / claim number':'Reference (optional)';
 async function loadPayments(pid){const {data,error}=await sb.from('payments').select('*').eq('patient_id',pid).order('paid_on');if(error)throw error;payList=(data||[]).sort((a,b)=>(a.paid_on+a.created_at).localeCompare(b.paid_on+b.created_at))}
@@ -620,8 +617,7 @@ function billOf(p){
   const done=p.plan.filter(i=>i.status==='completed'),planned=p.plan.filter(i=>i.status!=='completed');
   const charges=done.reduce((a,i)=>a+(+i.fee||0),0),plannedTotal=planned.reduce((a,i)=>a+(+i.fee||0),0);
   const disc=payList.reduce((a,x)=>a+(+x.discount||0),0),paid=payList.reduce((a,x)=>a+(+x.amount||0),0);
-  const total=charges+plannedTotal;
-  return {done,planned,charges,plannedTotal,disc,paid,balance:charges-disc-paid,total,due:total-disc-paid};
+  return {done,planned,charges,plannedTotal,disc,paid,balance:charges-disc-paid};
 }
 function numWords(n){
   n=Math.round(Math.abs(+n||0));if(!n)return 'Zero';
@@ -637,14 +633,14 @@ function payTab(p){
   const b=billOf(p),f=view.payForm||{};const method=f.method||'Cash',dtype=f.dtype||'none';
   const canPay=!readOnly();
   return `<section class="panel">
-    <div class="row"><h2>Payments</h2><span class="spacer"></span>${b.due<0?'<span class="pill ok">Advance / credit</span>':b.due===0&&b.total?'<span class="pill ok">Fully paid</span>':''}</div>
+    <div class="row"><h2>Payments</h2><span class="spacer"></span>${b.balance<0?'<span class="pill ok">Advance / credit</span>':b.balance===0&&b.charges?'<span class="pill ok">Fully paid</span>':''}</div>
     <div class="paysum">
-      <div><span>Total treatment</span><b>${money(b.total)}</b></div>
+      <div><span>Treatment done</span><b>${money(b.charges)}</b></div>
       <div><span>Discount</span><b>${b.disc?'− '+money(b.disc):money(0)}</b></div>
       <div><span>Paid</span><b>${money(b.paid)}</b></div>
-      <div class="${b.due>0?'due':''}"><span>${b.due<0?'Advance':'Due'}</span><b>${money(Math.abs(b.due))}</b></div>
+      <div class="${b.balance>0?'due':''}"><span>${b.balance<0?'Advance':'Balance due'}</span><b>${money(Math.abs(b.balance))}</b></div>
     </div>
-    <p class="small muted" style="margin:0">Total treatment = everything in the treatment plan: done so far ${money(b.charges)}${b.plannedTotal?' + still to do '+money(b.plannedTotal):''}. Every payment counts, even before the treatment is marked completed.</p>
+    <p class="small muted" style="margin:0">Charges count treatment marked completed in the Treatment plan. Still planned: ${money(b.plannedTotal)}${b.planned.length?' ('+b.planned.length+' item'+(b.planned.length>1?'s':'')+')':''}.</p>
     <div class="row"><button class="btn primary" data-act="printInvoice">${icon('doc')} Invoice with treatment</button><button class="btn" data-act="printReceipt" ${payList.length?'':'disabled'}>${icon('doc')} Payment receipt only</button></div>
     ${balToggle()}
     <p class="small muted" style="margin:0">The invoice lists the treatment, fees, discount and payments. The receipt shows only the money received, without any treatment.</p>
@@ -653,7 +649,7 @@ function payTab(p){
     <h2>Record a payment</h2>
     <div class="grid2">
       <label class="f"><span>Date</span><input type="date" id="pay-date" value="${f.date||today()}"></label>
-      <label class="f"><span>Amount received (Rs)</span><input type="number" inputmode="numeric" id="pay-amt" min="0" step="1" value="${esc(f.amount??(b.due>0?b.due:''))}" placeholder="0"></label>
+      <label class="f"><span>Amount received (Rs)</span><input type="number" inputmode="numeric" id="pay-amt" min="0" step="1" value="${esc(f.amount??(b.balance>0?b.balance:''))}" placeholder="0"></label>
     </div>
     <div class="f"><span class="small muted" style="font-weight:500">Payment method</span>
       <div class="chips" role="radiogroup">${PAY_METHODS.map(m=>`<button type="button" class="chip ${m===method?'on':''}" data-paymethod="${m}" role="radio" aria-checked="${m===method}">${m}</button>`).join('')}</div></div>
@@ -684,14 +680,14 @@ function readPayForm(p){
   const g=id=>{const el=$('#'+id);return el?el.value:undefined};
   ['date','amount','reference','dval','dreason','note'].forEach((k,i)=>{const v=g(['pay-date','pay-amt','pay-ref','pay-disc','pay-dreason','pay-note'][i]);if(v!==undefined)f[k]=v});
   f.method=f.method||'Cash';f.dtype=f.dtype||'none';
-  const dueBefore=Math.max(0,b.due);const dv=Math.max(0,parseFloat(f.dval)||0);
+  const dueBefore=Math.max(0,b.balance);const dv=Math.max(0,parseFloat(f.dval)||0);
   const discount=f.dtype==='rs'?Math.round(dv):f.dtype==='pct'?Math.round(dueBefore*Math.min(dv,100)/100):0;
   const amount=Math.max(0,Math.round(parseFloat(f.amount)||0));
-  return {f,dueBefore,discount,amount,after:b.due-discount-amount};
+  return {f,dueBefore,discount,amount,after:b.balance-discount-amount};
 }
 function payPreview(p){
   const r=readPayForm(p);
-  return `<span>Due now <b>${money(r.dueBefore)}</b></span>${r.discount?`<span>− Discount <b>${money(r.discount)}</b></span>`:''}<span>− Paying <b>${money(r.amount)}</b></span><span class="${r.after>0?'due':'ok'}">${r.after<0?'Advance':'Due after this'} <b>${money(Math.abs(r.after))}</b></span>`;
+  return `<span>Due now <b>${money(r.dueBefore)}</b></span>${r.discount?`<span>− Discount <b>${money(r.discount)}</b></span>`:''}<span>− Paying <b>${money(r.amount)}</b></span><span class="${r.after>0?'due':'ok'}">${r.after<0?'Advance':'Balance after'} <b>${money(Math.abs(r.after))}</b></span>`;
 }
 function pdfBase(title){
   const {jsPDF}=window.jspdf;const doc=new jsPDF({unit:'mm',format:'a4'});
@@ -725,7 +721,7 @@ function buildInvoice(p){
   if(b.done.length){P.row(['Date',isAes(p)?'Area':'Tooth','Treatment','Fee'],xs,{bold:true,size:8.5,color:C.MUT,right:[3],w:[22,14,110,40]});doc.setDrawColor(...C.LINE);doc.line(M,st.y-3.6,W-M,st.y-3.6);
     b.done.forEach(i=>P.row([i.doneDate?fmtDate(i.doneDate):'',i.tooth||'–',i.proc+(i.surf?' ('+i.surf+')':''),money(i.fee)],xs,{right:[3],w:[22,14,110,40]}));}
   else P.row(['No treatment completed yet.'],[M],{color:C.MUT});
-  if(b.planned.length){P.sec('Treatment planned (not done yet)');
+  if(b.planned.length){P.sec('Treatment still planned (not charged yet)');
     b.planned.forEach(i=>P.row(['','',(i.tooth?i.tooth+'  ':'')+i.proc+(i.surf?' ('+i.surf+')':''),money(i.fee)],xs,{right:[3],w:[22,14,110,40],color:C.MUT}));
     P.row(['','','Planned total',money(b.plannedTotal)],xs,{right:[3],w:[22,14,110,40],color:C.MUT,bold:true});}
   if(showBal()&&payList.length){P.sec('Payments received');
@@ -733,8 +729,8 @@ function buildInvoice(p){
   P.ensure(40);st.y+=4;const sx=W-M-80;
   const tot=(l,v,bold)=>{doc.setFont('helvetica',bold?'bold':'normal');doc.setFontSize(bold?11:9.5);doc.setTextColor(...C.INK);doc.text(l,sx,st.y);doc.text(v,W-M,st.y,{align:'right'});st.y+=bold?7:5.6};
   doc.setDrawColor(...C.LINE);doc.line(sx,st.y-4,W-M,st.y-4);
-  tot('Treatment done',money(b.charges));if(b.plannedTotal)tot('Treatment still planned',money(b.plannedTotal));if(b.plannedTotal)tot('Total treatment',money(b.total),false);if(b.disc)tot('Discount','- '+money(b.disc));
-  if(showBal()){tot('Paid',money(b.paid));doc.setDrawColor(...C.INK);doc.line(sx,st.y-3.5,W-M,st.y-3.5);st.y+=1.5;tot(b.due<0?'Advance (credit)':'Due',money(Math.abs(b.due)),true);}
+  tot('Treatment done',money(b.charges));if(b.disc)tot('Discount','- '+money(b.disc));
+  if(showBal()){tot('Paid',money(b.paid));doc.setDrawColor(...C.INK);doc.line(sx,st.y-3.5,W-M,st.y-3.5);st.y+=1.5;tot(b.balance<0?'Advance (credit)':'Remaining balance',money(Math.abs(b.balance)),true);}
   else{doc.setDrawColor(...C.INK);doc.line(sx,st.y-3.5,W-M,st.y-3.5);st.y+=1.5;tot('Total after discount',money(b.charges-b.disc),true);}
   P.foot(p);return doc.output('blob');
 }
@@ -752,8 +748,7 @@ function buildReceipt(p,x){
   if(+x.discount)line('Discount given',money(x.discount)+(x.disc_pct?' ('+x.disc_pct+'%)':'')+(x.disc_reason?' – '+x.disc_reason:''));
   if(x.note)line('Note',x.note);
   st.y+=3;doc.setDrawColor(...C.LINE);doc.line(M,st.y-4,W-M,st.y-4);
-  line('Total treatment',money(b.total));if(b.disc)line('Total discount','- '+money(b.disc));line('Total paid to date',money(b.paid));
-  doc.setFont('helvetica','bold');line(b.due<0?'Advance (credit)':'Due',money(Math.abs(b.due)));doc.setFont('helvetica','normal');
+  if(showBal()){line('Total paid to date',money(b.paid));line(b.balance<0?'Advance (credit)':'Remaining balance',money(Math.abs(b.balance)));}
   P.foot(p);return doc.output('blob');
 }
 function printBill(kind,payId){
@@ -786,7 +781,6 @@ async function loadDay(day){
   const s=new Date(day+'T00:00:00'),e=new Date(s);e.setDate(e.getDate()+1);
   const {data,error}=await sb.from('appointments').select('*').eq('clinic_id',clinic.id).gte('starts_at',s.toISOString()).lt('starts_at',e.toISOString()).order('starts_at');
   if(error)throw error;apptsDay=data||[];
-  await loadBookings(day);
 }
 let monthCounts={},monthLoaded='';
 async function loadMonth(m){
@@ -879,100 +873,6 @@ function apptCard(a,showPatient){
     </div>
   </div>`;
 }
-/* ---- Online booking (online version): patients book a free time from the clinic's QR code / link ---- */
-let booking={cfg:null,code:null,err:'',day:[],waiting:[]};
-const BK_DAYS=[[1,'Monday'],[2,'Tuesday'],[3,'Wednesday'],[4,'Thursday'],[5,'Friday'],[6,'Saturday'],[0,'Sunday']];
-const BK_DEFAULT={enabled:false,slot:30,chairs:1,days:30,tz:300,hours:{1:['09:00','17:00'],2:['09:00','17:00'],3:['09:00','17:00'],4:['09:00','17:00'],5:['09:00','17:00'],6:['10:00','14:00']}};
-const bookingLink=()=>booking.code?location.origin+location.pathname.replace(/[^/]*$/,'')+'book.html?c='+encodeURIComponent(booking.code):'';
-async function loadBookingCfg(){
-  if(LOCAL||!clinic)return;
-  try{const {data,error}=await sb.from('clinics').select('booking,booking_code').eq('id',clinic.id).single();if(error)throw error;
-    booking.cfg=Object.assign({},BK_DEFAULT,data.booking||{});booking.code=data.booking_code||null;booking.err='';await loadBookings(today())}
-  catch(e){booking.err=/booking|column|schema cache/i.test(e.message||'')?'needsql':friendly(e)}
-}
-async function loadBookings(day){
-  if(LOCAL||booking.err||!clinic)return;
-  try{const {data,error}=await sb.from('online_bookings').select('*').eq('clinic_id',clinic.id).eq('status','new').order('starts_at');if(error)throw error;
-    const now=Date.now()-36e5;booking.waiting=(data||[]).filter(b=>new Date(b.starts_at).getTime()>now);
-    booking.day=booking.waiting.filter(b=>dayOf(b.starts_at)===day)}catch(e){}
-}
-function bookingCard(b){
-  const wa=String(b.phone).replace(/[^0-9]/g,'').replace(/^0/,'92');
-  return `<div class="appt online"><div class="tm"><b>${hhmm(b.starts_at)}</b><span>${fmtDate(dayOf(b.starts_at))}</span></div>
-    <div class="ai"><div class="row" style="gap:8px"><b>${esc(b.name)}</b><span class="pill info">Online booking</span></div>
-      <div class="small muted">${esc(b.phone)}${b.reason?' · '+esc(b.reason):''} · ${b.duration} min</div>
-      <div class="row">${readOnly()?'':`<button class="btn small primary" data-bkaccept="${b.id}">Accept – add to appointments</button><button class="btn small" data-bkdecline="${b.id}">Decline</button>`}
-        <a class="btn small" href="https://wa.me/${esc(wa)}" target="_blank" rel="noopener">WhatsApp</a><a class="btn small" href="tel:${esc(b.phone)}">Call</a></div></div></div>`;
-}
-function bookingWaitingPanel(){
-  if(LOCAL||!booking.waiting.length)return '';
-  return `<section class="panel bkwait"><div class="row"><h3 style="margin:0">Online bookings waiting</h3><span class="pill warn">${booking.waiting.length}</span><span class="spacer"></span><span class="small muted">Booked by patients from your QR code</span></div>
-    <div class="appts">${booking.waiting.map(bookingCard).join('')}</div></section>`;
-}
-async function acceptBooking(id){
-  const b=booking.waiting.find(x=>x.id===id);if(!b)return;
-  const digits=s=>String(s||'').replace(/[^0-9]/g,'').slice(-10);
-  let p=db.patients.find(x=>!isAes(x)&&digits(x.phone)&&digits(x.phone)===digits(b.phone))||db.patients.find(x=>digits(x.phone)&&digits(x.phone)===digits(b.phone));
-  let created=false;
-  if(!p){p=blankPatient();const parts=String(b.name).trim().split(/\s+/);p.first=parts.shift()||b.name;p.last=parts.join(' ');p.phone=b.phone;
-    p.notes.push({id:uid(),date:today(),title:'Online booking',by:me.name,text:'Booked online for '+fmtDate(dayOf(b.starts_at))+' at '+hhmm(b.starts_at)+(b.reason?'. Reason: '+b.reason:'')+'.'});
-    db.patients.push(p);markDirty(p.id);created=true}
-  if(dirty.size)await flush();
-  const {data,error}=await sb.from('appointments').insert({clinic_id:clinic.id,patient_id:p.id,starts_at:b.starts_at,duration:b.duration,reason:b.reason?('Online: '+b.reason):'Online booking',note:'Booked online by the patient',dentist_id:null}).select();
-  if(error)throw error;const ap=Array.isArray(data)?data[0]:data;
-  const r=await sb.from('online_bookings').update({status:'accepted',appointment_id:ap&&ap.id}).eq('id',id);if(r.error)throw r.error;
-  booking.waiting=booking.waiting.filter(x=>x.id!==id);booking.day=booking.day.filter(x=>x.id!==id);
-  toast((created?'New patient file made for ':'Added to ')+b.name+' – '+fmtDate(dayOf(b.starts_at))+' '+hhmm(b.starts_at));
-}
-function bookingSettingsPanel(){
-  if(!isAdmin())return '';
-  if(LOCAL)return `<section class="panel"><h3>Online booking</h3><p class="small muted" style="margin:0">Patients can book online only in the online version of the app, because their phones must reach your records over the internet.</p></section>`;
-  if(booking.err==='needsql')return `<section class="panel"><h3>Online booking</h3><div class="msg warn">This needs one small database update. Open <b>Supabase → SQL Editor</b>, paste <b>supabase-update-oct2026.sql</b> and press <b>Run</b>, then reload.</div></section>`;
-  if(!booking.cfg)return `<section class="panel"><h3>Online booking</h3><p class="small muted">Loading…</p></section>`;
-  const c=booking.cfg,link=bookingLink();
-  return `<section class="panel"><div class="row"><h3 style="margin:0">Online booking</h3><span class="spacer"></span><span class="pill ${c.enabled?'ok':'warn'}">${c.enabled?'On – patients can book':'Off'}</span></div>
-    <p class="small muted" style="margin:0">Patients scan your QR code (or open the link), pick a free time and write their name and mobile. The booking appears in Appointments at once, with a sound. You accept it with one tap.</p>
-    <form id="bookingForm" style="display:flex;flex-direction:column;gap:10px">
-      <label class="row small" style="gap:10px"><input type="checkbox" id="bk-on" ${c.enabled?'checked':''} style="width:22px;height:22px"> <b>Allow online booking</b></label>
-      <div class="grid3">
-        <label class="f"><span>Length of one booking</span><select id="bk-slot">${[15,20,30,45,60].map(n=>`<option value="${n}" ${+c.slot===n?'selected':''}>${n} minutes</option>`).join('')}</select></label>
-        <label class="f"><span>Patients at the same time</span><select id="bk-chairs">${[1,2,3,4,5].map(n=>`<option value="${n}" ${+c.chairs===n?'selected':''}>${n} (${n===1?'one chair':n+' chairs / dentists'})</option>`).join('')}</select></label>
-        <label class="f"><span>Patients can book up to</span><select id="bk-days">${[7,14,30,60].map(n=>`<option value="${n}" ${+c.days===n?'selected':''}>${n} days ahead</option>`).join('')}</select></label>
-      </div>
-      <div class="bkhours">${BK_DAYS.map(([d,l])=>{const h=(c.hours||{})[d];return `<div class="bkday"><label class="row small" style="gap:8px;min-width:140px"><input type="checkbox" data-bkopen="${d}" ${h?'checked':''} style="width:20px;height:20px"> ${l}</label>
-        <input type="time" id="bk-from-${d}" value="${h?h[0]:'09:00'}" ${h?'':'disabled'} aria-label="${l} opens"><span class="small muted">to</span><input type="time" id="bk-to-${d}" value="${h?h[1]:'17:00'}" ${h?'':'disabled'} aria-label="${l} closes"></div>`}).join('')}</div>
-      <label class="f"><span>Closed on these dates (holidays) – e.g. 2026-12-25, 2027-01-01</span><input type="text" id="bk-off" value="${esc((c.off||[]).join(', '))}" placeholder="YYYY-MM-DD, YYYY-MM-DD"></label>
-      <p class="small muted" style="margin:0">Times are Pakistan time. Existing appointments and bookings are never offered again.</p>
-      <div class="row"><button class="btn primary" type="submit">Save booking settings</button></div>
-    </form>
-    ${link?`<div class="bkqr"><div id="bkQr" class="bkqr-code" aria-label="QR code for online booking"></div>
-      <div style="display:flex;flex-direction:column;gap:8px;min-width:0"><b>Your booking QR code</b><a class="bklink" href="${esc(link)}" target="_blank" rel="noopener">${esc(link)}</a>
-      <div class="row"><button class="btn small" data-act="bkCopy">Copy link</button><button class="btn small" data-act="bkShare">Share</button><button class="btn small primary" data-act="bkPoster">${icon('doc')} Print QR poster</button><button class="btn small" data-act="bkNewCode">New code</button></div>
-      <p class="small muted" style="margin:0">Print the poster for your reception, or post the link on WhatsApp, Facebook or Google. "New code" makes the old QR stop working.</p></div></div>`:''}
-  </section>`;
-}
-function qrInto(el,text,size){return new Promise(res=>{const go=()=>{try{el.innerHTML='';new window.QRCode(el,{text,width:size,height:size,colorDark:'#0B2227',colorLight:'#ffffff',correctLevel:window.QRCode.CorrectLevel.M})}catch(e){}res()};
-  if(window.QRCode)return go();if(!qrLib)qrLib=new Promise((r,j)=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';s.onload=r;s.onerror=j;document.head.appendChild(s)});qrLib.then(go,()=>res())})}
-function fillBookingQr(){const el=document.getElementById('bkQr');if(el&&!el.childElementCount&&bookingLink())qrInto(el,bookingLink(),168)}
-async function bookingPoster(){
-  if(!window.jspdf){toast('The PDF tool did not load. Check your internet and reload the page.');return}
-  const link=bookingLink();if(!link)return;const tmp=document.createElement('div');tmp.style.cssText='position:fixed;left:-9999px';document.body.appendChild(tmp);
-  await qrInto(tmp,link,600);const cv=tmp.querySelector('canvas');const img=tmp.querySelector('img');const src=cv?cv.toDataURL('image/png'):img&&img.src;tmp.remove();
-  if(!src){toast('The QR code could not be made. Check your internet and try again.');return}
-  const {jsPDF}=window.jspdf;const doc=new jsPDF({unit:'mm',format:'a4'});const W=210;
-  doc.setFillColor(11,34,39);doc.rect(0,0,W,62,'F');
-  let ty=26;if(branding.logo){try{const fm=/^data:image\/png/.test(branding.logo)?'PNG':'JPEG';const ip=doc.getImageProperties(branding.logo);const h=18,w=Math.min(50,h*ip.width/ip.height);doc.setFillColor(255,255,255);doc.roundedRect(W/2-w/2-3,8,w+6,h+4,3,3,'F');doc.addImage(branding.logo,fm,W/2-w/2,10,w,h);ty=40}catch(e){}}
-  doc.setTextColor(244,246,244);doc.setFont('helvetica','bold');doc.setFontSize(24);doc.text(String(clinic.name).replace(/[^\x20-\x7E -ÿ]/g,''),W/2,ty,{align:'center'});
-  doc.setFont('helvetica','normal');doc.setFontSize(12);doc.setTextColor(127,211,203);const sub=[clinic.address,clinic.phone].filter(Boolean).join('  ·  ');if(sub)doc.text(sub.replace(/[^\x20-\x7E -ÿ]/g,''),W/2,ty+9,{align:'center'});
-  doc.setTextColor(24,35,42);doc.setFont('helvetica','bold');doc.setFontSize(30);doc.text('Book your appointment',W/2,86,{align:'center'});
-  doc.setFont('helvetica','normal');doc.setFontSize(14);doc.setTextColor(93,107,114);doc.text('Scan the code with your phone camera and choose a free time',W/2,96,{align:'center'});
-  doc.addImage(src,'PNG',W/2-45,106,90,90);doc.setDrawColor(200,209,207);doc.roundedRect(W/2-50,101,100,100,4,4);
-  doc.setFontSize(11);doc.setTextColor(31,95,107);const ll=doc.splitTextToSize(link,170);doc.text(ll,W/2,214,{align:'center'});
-  doc.setFontSize(12);doc.setTextColor(93,107,114);doc.text(['1. Open the camera and point it at the code','2. Choose a day and a free time','3. Write your name and mobile number – done!'],W/2-55,236);
-  doc.setFontSize(8);doc.text('Clinic Patient Records',W/2,288,{align:'center'});
-  await deliverFile(doc.output('blob'),('Booking_QR_'+clinic.name+'.pdf').replace(/[^\w.\-]+/g,'_'),'save');
-}
-const newBookingCode=()=>{const a='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';return [...crypto.getRandomValues(new Uint8Array(10))].map(x=>a[x%a.length]).join('')};
 function apptsView(){
   const day=view.day||today();
   const act=apptsDay.filter(a=>a.status!=='cancelled');
@@ -984,7 +884,6 @@ function apptsView(){
     <button class="btn small desk-hide" data-act="settings">Clinic & account</button>
   </header>
   ${homeNav('appts')}
-  ${bookingWaitingPanel()}
   <div class="appts-layout">
   ${calendarHtml()}
   <section class="panel">
@@ -994,7 +893,7 @@ function apptsView(){
     <div class="row"><input type="date" id="dayPick" value="${day}" style="max-width:180px"><span class="spacer"></span>
       ${day!==today()?'<button class="btn small" data-day="'+today()+'">Today</button>':''}<button class="btn small" data-day="${shiftDay(today(),1)}">Tomorrow</button></div>
     <div class="small muted">${apptsLoading?'Loading…':act.length+' appointment'+(act.length===1?'':'s')+(need?' · '+need+' without a reminder':'')}</div>
-    ${apptsDay.length||booking.day.length?`<div class="appts">${[...apptsDay.map(a=>({t:a.starts_at,h:apptCard(a,true)})),...booking.day.map(b=>({t:b.starts_at,h:bookingCard(b)}))].sort((x,y)=>String(x.t).localeCompare(String(y.t))).map(x=>x.h).join('')}</div>`:(apptsLoading?'':'<div class="empty">No appointments this day. Book one from a patient’s file, in the Appointments tab.</div>')}
+    ${apptsDay.length?`<div class="appts">${apptsDay.map(a=>apptCard(a,true)).join('')}</div>`:(apptsLoading?'':'<div class="empty">No appointments this day. Book one from a patient’s file, in the Appointments tab.</div>')}
   </section>
   </div>
   <p class="small muted">Reminders open the SMS or WhatsApp app on this phone with the message ready. You tap Send. Change the message in Clinic & account.</p>`;
@@ -1238,7 +1137,6 @@ function render(){
   app.innerHTML=inShell?shell(ownerBar()+v()):`<div class="wrap">${v()}${['auth','onboard','newpw','recovery','config'].includes(s)?CREDIT:''}${s==='auth'?'<p class="ownerlink"><button class="linkbtn" data-act="ownerOpen">Owner access</button></p>':''}</div>`;
   if(view.screen==='msgs'){const cl=document.getElementById('chatList');if(cl)cl.scrollTop=cl.scrollHeight}
   if(document.querySelector('.credit-qr'))fillQR();
-  if(document.getElementById('bkQr'))fillBookingQr();
   const cv=document.getElementById('camVideo');if(cv&&camStream&&cv.srcObject!==camStream){cv.srcObject=camStream;cv.play().catch(()=>{})}
   if(camStream&&!(view.screen==='patient'&&view.tab==='xrays'))stopCamera();
 }
@@ -1368,8 +1266,7 @@ function earnDentists(D){
     return `<tr class="${sel===n?'selrow':''}"><td><button class="linkbtn" data-earndent="${esc(n)}">${esc(n)}</button></td><td style="text-align:right">${o.n}</td><td style="text-align:right"><b>${money(o.v)}</b></td><td>${pay}</td><td style="text-align:right">${share}</td></tr>`}).join('');
   let detail='';
   if(sel){const mine=D.done.filter(x=>x.i.doneBy===sel);const bp={};mine.forEach(({i})=>{const k=procGroup(i.proc);const o=bp[k]||(bp[k]={n:0,v:0});o.n++;o.v+=+i.fee||0});const tv=mine.reduce((a,x)=>a+(+x.i.fee||0),0);const st=staffFor(sel);
-    const curM=(earn.anchor||today()).slice(0,7);const slip=st?finOf('salary').find(r=>r.data.staff_id===st.id&&r.data.month===curM&&r.data.status==='paid'):null;
-    detail=`<section class="subpanel"><div class="row"><h3 style="margin:0">${esc(sel)} – ${esc(earnTitle(D.f,D.t))}</h3><span class="spacer"></span>${slip?`<button class="btn small primary" data-salslip="${slip.id}">${icon('doc')} Pay slip ${esc(MONTHS[+curM.slice(5,7)-1])}</button>`:st?`<button class="btn small" data-paydent="${st.id}">Pay ${esc(MONTHS[+curM.slice(5,7)-1])} salary</button>`:''}<button class="btn small" data-act="printDentist">${icon('doc')} Dentist report PDF</button></div>
+    detail=`<section class="subpanel"><div class="row"><h3 style="margin:0">${esc(sel)} – ${esc(earnTitle(D.f,D.t))}</h3><span class="spacer"></span><button class="btn small" data-act="printDentist">${icon('doc')} Print PDF</button></div>
       ${treatTable(bp,tv,mine.length)}
       ${mine.length?`<details style="margin-top:8px"><summary class="small">Show every treatment (${mine.length})</summary><div class="tablewrap"><table class="att"><thead><tr><th>Date</th><th>Patient</th><th>Tooth</th><th>Treatment</th><th style="text-align:right">Fee</th></tr></thead><tbody>${mine.sort((a,b)=>String(b.i.doneDate).localeCompare(String(a.i.doneDate))).map(({p,i})=>`<tr><td>${fmtDate(i.doneDate)}</td><td>${esc((p.first+' '+p.last).trim())}</td><td>${esc(i.tooth||'–')}</td><td>${esc(i.proc)}</td><td style="text-align:right">${money(i.fee)}</td></tr>`).join('')}</tbody></table></div></details>`:''}
       <form id="dentPayForm" class="payset"><b>Pay for ${esc(sel)}</b>
@@ -1395,12 +1292,11 @@ function earnExpenses(D){
         <label class="f"><span>Amount (Rs)</span><input type="number" id="ex-amt" min="0" step="1" inputmode="numeric" value="${esc(f.amount||'')}" required></label>
       </div>
       <label class="f"><span>Note (optional)</span><input type="text" id="ex-note" value="${esc(f.note||'')}"></label>
-      <div class="chips salmeth"><span class="small muted" style="align-self:center">Paid by:</span>${SAL_METHODS.map((m,i)=>`<label class="chip"><input type="radio" name="ex-method" value="${m}" ${(f.method||'Cash')===m?'checked':''}> ${m}</label>`).join('')}</div>
       <div class="row"><button class="btn primary" type="submit">Save expense</button></div>
     </form>
     <section class="subpanel"><div class="row"><h3 style="margin:0">Expenses – ${esc(earnTitle(D.f,D.t))}</h3><span class="spacer"></span><b>${money(D.expTotal)}</b></div>
       ${D.exps.length?`<div class="tablewrap"><table class="att"><thead><tr><th>Date</th><th>Type</th><th>Item</th><th style="text-align:right">Amount</th><th></th></tr></thead><tbody>
-      ${D.exps.map(r=>{const d=r.data;return `<tr><td>${fmtDate(d.date)}</td><td>${esc(d.cat||'')}${d.lab?`<br><small class="muted">${esc(d.lab)}</small>`:''}</td><td>${esc(d.item||'')}${d.pat?` <small class="muted">· ${esc(d.pat)}</small>`:''}${d.note?`<br><small class="muted">${esc(d.note)}</small>`:''}</td><td style="text-align:right">${money(d.amount)}${d.method?`<br><small class="muted">${esc(d.method)}</small>`:''}</td><td><div class="row" style="flex-wrap:nowrap;gap:4px"><button class="btn small" data-expslip="${r.id}">${icon('doc')} Voucher</button>${view.confirm==='expdel:'+r.id?`<button class="btn small danger" data-expdel="${r.id}">Delete</button>`:`<button class="btn small" data-askexpdel="${r.id}" aria-label="Delete expense">✕</button>`}</div></td></tr>`}).join('')}
+      ${D.exps.map(r=>{const d=r.data;return `<tr><td>${fmtDate(d.date)}</td><td>${esc(d.cat||'')}${d.lab?`<br><small class="muted">${esc(d.lab)}</small>`:''}</td><td>${esc(d.item||'')}${d.pat?` <small class="muted">· ${esc(d.pat)}</small>`:''}${d.note?`<br><small class="muted">${esc(d.note)}</small>`:''}</td><td style="text-align:right">${money(d.amount)}</td><td>${view.confirm==='expdel:'+r.id?`<button class="btn small danger" data-expdel="${r.id}">Delete</button>`:`<button class="btn small" data-askexpdel="${r.id}" aria-label="Delete expense">✕</button>`}</td></tr>`}).join('')}
       </tbody></table></div><h3 style="margin:12px 0 6px">By type</h3>${listBars(D.byCat,D.expTotal)}`:'<p class="muted" style="margin:0">No expenses in this period.</p>'}
     </section>`;
 }
@@ -1452,20 +1348,6 @@ function salFormHtml(r,month){const f=earn.salForm;
     <div class="chips">${SAL_METHODS.map((m,i)=>`<label class="chip"><input type="radio" name="sl-method" value="${m}" ${i===0?'checked':''}> ${m}</label>`).join('')}</div>
     <div class="row"><button class="btn primary" type="submit">Save as paid</button><button class="btn" type="button" data-act="salCancel">Cancel</button></div>
   </form>`}
-async function expenseVoucher(id){
-  if(!window.jspdf){toast('The PDF tool did not load. Check your internet and reload the page.');return}
-  const r=finOf('expense').find(x=>x.id===id);if(!r)return;const d=r.data;const P=pdfBase('Expense voucher');const {doc,W,M,st:y,C}=P;
-  const no='EXP-'+String(d.date||'').replace(/-/g,'').slice(2)+'-'+String(id).replace(/-/g,'').slice(0,4).toUpperCase();
-  P.kv('Voucher no.',no,M,60);P.kv('Date',d.date?fmtDate(d.date):'–',M+70,40);P.kv('Paid by',(d.method||'Cash'),W-M-56,56);y.y+=14;
-  P.sec('Expense');const two=(l,v,b)=>P.row([l,v],[M,W-M],{right:[1],bold:b,w:[120,70]});
-  two('Type',d.cat+(d.lab?' – '+d.lab:''));if(d.item)two(d.cat==='Materials'?'Material':d.cat==='Lab charges'?'Lab':'For',d.item);if(d.pat)two('Patient',d.pat);if(d.note)two('Note',d.note);
-  doc.setDrawColor(...C.LINE);doc.line(M,y.y-3.6,W-M,y.y-3.6);two('Amount',money(d.amount),true);
-  P.row(['In words: Rupees '+numWords(d.amount)+' only'],[M],{color:C.MUT,size:9,w:[170]});
-  y.y+=34;doc.setDrawColor(...C.INK);doc.line(M,y.y,M+70,y.y);doc.line(W-M-70,y.y,W-M,y.y);
-  doc.setFontSize(8);doc.setTextColor(...C.MUT);doc.text('Approved by',M,y.y+4);doc.text(P.clean(me.name),M,y.y+8);doc.text('Received by (supplier / lab)',W-M-70,y.y+4);
-  doc.setFontSize(7.5);doc.text(P.clean(clinic.name)+' – expense voucher '+no,M,290);
-  await deliverFile(doc.output('blob'),('Expense_voucher_'+(d.item||d.cat)+'_'+(d.date||'')+'.pdf').replace(/[^\w.\-]+/g,'_'),'save');
-}
 async function salarySlip(salId){
   if(!window.jspdf){toast('The PDF tool did not load. Check your internet and reload the page.');return}
   const s=finOf('salary').find(x=>x.id===salId);if(!s)return;const st=finOf('staff').find(x=>x.id===s.data.staff_id)||{data:{name:'Staff',role:''}};
@@ -1476,7 +1358,6 @@ async function salarySlip(salId){
   P.kv('Salary for',mLabel,M,95);P.kv('Payment method',(d.method||'–')+(d.ref?' – '+d.ref:''),M+100,80);y.y+=13;
   P.sec('Pay');
   const two=(l,v,b)=>P.row([l,v],[M,W-M],{right:[1],bold:b,w:[140,50]});
-  two('Pay type',sd.pay==='percent'?'Percentage of own treatment':'Fixed monthly salary');two('Paid by',(d.method||'–')+(d.ref?' – '+d.ref:''));
   if(sd.pay==='percent'){const f=d.month+'-01',t=isoD(new Date(+d.month.slice(0,4),+d.month.slice(5,7),0));const v=doneIn(f,t,sd.name).reduce((a,x)=>a+(+x.i.fee||0),0);
     two('Treatment done in '+mLabel,money(v));two('Share',(+sd.percent||0)+'%');}
   else two('Monthly salary',money(sd.salary));
@@ -1487,7 +1368,7 @@ async function salarySlip(salId){
   doc.setFontSize(7.5);doc.text(P.clean(clinic.name)+' – salary receipt '+no,M,290);
   await deliverFile(doc.output('blob'),('Salary_receipt_'+sd.name+'_'+d.month+'.pdf').replace(/[^\w.\-]+/g,'_'),'save');
 }
-const readExpForm=()=>{const g=id=>{const x=$('#'+id);return x?x.value:''};return {date:g('ex-date'),cat:g('ex-cat'),lab:g('ex-lab'),item:g('ex-item').trim(),pat:g('ex-pat').trim(),amount:g('ex-amt'),note:g('ex-note').trim(),method:(document.querySelector('input[name=ex-method]:checked')||{}).value||'Cash'}};
+const readExpForm=()=>{const g=id=>{const x=$('#'+id);return x?x.value:''};return {date:g('ex-date'),cat:g('ex-cat'),lab:g('ex-lab'),item:g('ex-item').trim(),pat:g('ex-pat').trim(),amount:g('ex-amt'),note:g('ex-note').trim()}};
 function earningsView(){
   if(!isAdmin())return `${homeNav('earn')}<section class="panel"><h2>Clinic earnings</h2><p class="muted">Only the clinic admin can see earnings.</p></section>`;
   if(!earnOpen())return `${homeNav('earn')}<h1>Earnings</h1>${earnLockView()}`;
@@ -1498,7 +1379,7 @@ function earningsView(){
   const body={overview:earnOverview,treat:D=>treatTable(D.byProc,D.treatVal,D.done.length),dentists:earnDentists,expenses:earnExpenses,staff:earnStaff,payments:earnPayments}[earn.tab]||earnOverview;
   return `${homeNav('earn')}
   <div class="row" style="gap:10px;flex-wrap:wrap"><h1 style="margin:0">Earnings</h1><span class="spacer"></span>
-    <label class="row small" style="gap:6px">Print <select id="earn-print" style="width:auto">${[['all','Whole report'],['summary','Summary only'],['treat','Treatments only'],['dentists','Dentists only'],['expenses','Expenses only'],['salaries','Salaries only'],['payments','Payments received only']].map(([k,l])=>`<option value="${k}" ${earn.printWhat===k?'selected':''}>${l}</option>`).join('')}</select></label>
+    <label class="row small" style="gap:6px">Print <select id="earn-print" style="width:auto">${[['all','Whole report'],['treat','Treatments only'],['dentists','Dentists only'],['expenses','Expenses & salaries'],['payments','Payments list']].map(([k,l])=>`<option value="${k}" ${earn.printWhat===k?'selected':''}>${l}</option>`).join('')}</select></label>
     <button class="btn small primary" data-act="earnPdf">${icon('doc')} PDF</button>
     <button class="btn small" data-act="earnCsv">Excel/CSV</button><button class="btn small" data-act="earnLock">${icon('lock')} Lock</button></div>
   ${needSqlNote()}
@@ -1528,7 +1409,7 @@ function earnCsv(){
 /* PDF report: whole, treatments, dentists, expenses & salaries, payments – or one dentist */
 async function earnPdf(what,dentist){
   if(!window.jspdf){toast('The PDF tool did not load. Check your internet and reload the page.');return}
-  const D=earnData();const TT={all:'Clinic report',summary:'Clinic summary',treat:'Treatment earnings',dentists:'Dentist earnings',expenses:'Expenses report',salaries:'Salaries report',payments:'Payments received'};const P=pdfBase(dentist?'Dentist report':(TT[what]||'Clinic report'));const {doc,W,M,st,C}=P;
+  const D=earnData();const P=pdfBase(dentist?'Dentist report':'Clinic report');const {doc,W,M,st,C}=P;
   P.kv('Period',earnTitle(D.f,D.t)+(earn.sec==='all'?'':' · '+(earn.sec==='aes'?'Aesthetics':'Dental')),M,90);P.kv('Printed',fmtDate(today())+' by '+me.name,M+95,80);st.y+=13;
   const R=[W-M];const two=(l,v,b)=>P.row([l,v],[M,W-M],{right:[1],bold:b,w:[140,50]});
   const tTable=(bp,total,count)=>{const xs=[M,W-M-45,W-M];P.row(['Treatment','How many','Earned'],xs,{bold:true,size:8.5,color:C.MUT,right:[1,2],w:[120,25,40]});
@@ -1536,39 +1417,16 @@ async function earnPdf(what,dentist){
     doc.setDrawColor(...C.LINE);doc.line(M,st.y-3.6,W-M,st.y-3.6);P.row(['Total – all treatments',String(count),money(total)],xs,{right:[1,2],bold:true,w:[120,25,40]})};
   if(dentist){const mine=D.done.filter(x=>x.i.doneBy===dentist);const bp={};mine.forEach(({i})=>{const k=procGroup(i.proc);const o=bp[k]||(bp[k]={n:0,v:0});o.n++;o.v+=+i.fee||0});const tv=mine.reduce((a,x)=>a+(+x.i.fee||0),0);
     P.kv('Dentist',dentist,M,120);st.y+=13;P.sec('Treatments done');if(mine.length)tTable(bp,tv,mine.length);else P.row(['No treatment in this period.'],[M],{color:C.MUT});
-    const stf=staffFor(dentist);P.sec('Salary / pay');
-    if(stf){if(stf.data.pay==='percent')two('Pay type: percentage',(+stf.data.percent||0)+'% of own treatment');else two('Pay type: fixed monthly salary',money(stf.data.salary)+' / month');
-      if(stf.data.pay==='percent')two('Share earned in this period ('+(+stf.data.percent||0)+'% of '+money(tv)+')',money(Math.round(tv*(+stf.data.percent||0)/100)),true);
-      const months=[];if(earn.period!=='all'){let d=parseD(D.f.slice(0,7)+'-01');const end=parseD(D.t);while(d<=end&&months.length<24){months.push(isoD(d).slice(0,7));d=new Date(d.getFullYear(),d.getMonth()+1,1)}}
-      const sals=finOf('salary').filter(r=>r.data.staff_id===stf.id&&(earn.period==='all'||months.includes(r.data.month))).sort((a,b)=>String(a.data.month).localeCompare(String(b.data.month)));
-      const mlab=m=>parseD(m+'-01').toLocaleDateString('en-GB',{month:'long',year:'numeric'});
-      P.row(['Month','Status','Paid by','Amount'],[M,M+50,M+90,W-M],{bold:true,size:8.5,color:C.MUT,right:[3],w:[48,38,70,40]});
-      const shown=new Set();sals.forEach(r=>{shown.add(r.data.month);const pd=r.data.status==='paid';P.row([mlab(r.data.month),pd?'Paid'+(r.data.paid_on?' '+fmtDate(r.data.paid_on):''):'Unpaid',pd?(r.data.method||'–')+(r.data.ref?' – '+r.data.ref:''):'–',money(pd?r.data.amount:payDue(stf,r.data.month))],[M,M+50,M+90,W-M],{right:[3],w:[48,38,70,40]})});
-      months.filter(m=>!shown.has(m)&&m<=today().slice(0,7)).forEach(m=>P.row([mlab(m),'Unpaid','–',money(payDue(stf,m))],[M,M+50,M+90,W-M],{right:[3],w:[48,38,70,40]}));
-      const paidT=sals.filter(r=>r.data.status==='paid').reduce((a,r)=>a+(+r.data.amount||0),0);doc.setDrawColor(...C.LINE);doc.line(M,st.y-3.6,W-M,st.y-3.6);two('Total salary paid',money(paidT),true)}
-    else P.row(['Pay not set yet – set it in Earnings → Dentists.'],[M],{color:C.MUT})
+    const stf=staffFor(dentist);if(stf){P.sec('Pay');two('Pay type',stf.data.pay==='percent'?(+stf.data.percent||0)+'% of treatment':money(stf.data.salary)+' per month');if(stf.data.pay==='percent')two('Share for this period',money(Math.round(tv*(+stf.data.percent||0)/100)),true)}
     if(mine.length){P.sec('Every treatment');const xs=[M,M+24,M+80,M+96,W-M];mine.sort((a,b)=>String(a.i.doneDate).localeCompare(String(b.i.doneDate))).forEach(({p,i})=>P.row([fmtDate(i.doneDate),(p.first+' '+p.last).trim(),i.tooth||'–',i.proc,money(i.fee)],xs,{right:[4],w:[22,54,14,70,30],size:8.5}))}
   }else{
-    if(what==='all'||what==='summary'){P.sec('Summary');two('Money received',money(D.received));two('Expenses',money(D.expTotal));two('Salaries paid',money(D.salPaid));two('Profit',(D.profit<0?'- ':'')+money(Math.abs(D.profit)),true);two('Treatment done (value)',money(D.treatVal));two('Discounts given',money(D.disc));two('Still owed by patients (up to now)',money(D.owed))}
+    if(what==='all'){P.sec('Summary');two('Money received',money(D.received));two('Expenses',money(D.expTotal));two('Salaries paid',money(D.salPaid));two('Profit',(D.profit<0?'- ':'')+money(Math.abs(D.profit)),true);two('Treatment done (value)',money(D.treatVal));two('Discounts given',money(D.disc));two('Still owed by patients (up to now)',money(D.owed))}
     if(what==='all'||what==='treat'){P.sec('Earnings by treatment');if(D.done.length)tTable(D.byProc,D.treatVal,D.done.length);else P.row(['No treatment in this period.'],[M],{color:C.MUT})}
     if(what==='all'||what==='dentists'){P.sec('Treatment value by dentist');const xs=[M,W-M-45,W-M];P.row(['Dentist','Treatments','Value'],xs,{bold:true,size:8.5,color:C.MUT,right:[1,2],w:[120,25,40]});
       Object.entries(D.byDent).sort((a,b)=>b[1].v-a[1].v).forEach(([k,o])=>{const s=staffFor(k);P.row([k+(s&&s.data.pay==='percent'?'  ('+(+s.data.percent||0)+'% = '+money(Math.round(o.v*(+s.data.percent||0)/100))+')':''),String(o.n),money(o.v)],xs,{right:[1,2],w:[120,25,40]})})}
-    if(what==='all'||what==='expenses'){P.sec('Expenses');if(D.exps.length){const xs=[M,M+24,M+70,W-M];D.exps.slice().reverse().forEach(r=>{const d=r.data;P.row([fmtDate(d.date),d.cat+(d.lab?' – '+d.lab:''),(d.item||'')+(d.pat?' · '+d.pat:'')+(d.method?' ('+d.method+')':''),money(d.amount)],xs,{right:[3],w:[22,46,90,30],size:8.5})});
+    if(what==='all'||what==='expenses'){P.sec('Expenses');if(D.exps.length){const xs=[M,M+24,M+70,W-M];D.exps.slice().reverse().forEach(r=>{const d=r.data;P.row([fmtDate(d.date),d.cat+(d.lab?' – '+d.lab:''),(d.item||'')+(d.pat?' · '+d.pat:''),money(d.amount)],xs,{right:[3],w:[22,46,90,30],size:8.5})});
         doc.setDrawColor(...C.LINE);doc.line(M,st.y-3.6,W-M,st.y-3.6);two('Total expenses',money(D.expTotal),true);Object.entries(D.byCat).forEach(([k,v])=>two('   '+k,money(v)))}else P.row(['No expenses in this period.'],[M],{color:C.MUT});
-    }
-    if(what==='all'||what==='salaries'){
-      P.sec('Staff salaries');
-      let months=[];if(earn.period==='all')months=[...new Set(finOf('salary').map(r=>r.data.month))].sort();else{let d=parseD(D.f.slice(0,7)+'-01');const end=parseD(D.t);while(d<=end&&months.length<24){months.push(isoD(d).slice(0,7));d=new Date(d.getFullYear(),d.getMonth()+1,1)}}
-      months=months.filter(m=>m<=today().slice(0,7));
-      const staff=finOf('staff');const xs=[M,M+52,M+80,M+118,W-M];
-      P.row(['Staff','Month','Status','Paid by','Amount'],xs,{bold:true,size:8.5,color:C.MUT,right:[4],w:[50,26,36,46,30]});
-      let paidT=0,dueT=0,any=false;
-      months.forEach(m=>staff.forEach(stf=>{const r=finOf('salary').find(x=>x.data.staff_id===stf.id&&x.data.month===m);const pd=r&&r.data.status==='paid';
-        if(!pd&&stf.data.active===false)return;any=true;const amt=pd?(+r.data.amount||0):payDue(stf,m);if(pd)paidT+=amt;else dueT+=amt;
-        P.row([stf.data.name+' ('+(stf.data.role==='Other'&&stf.data.roleName?stf.data.roleName:stf.data.role)+')',MONTHS[+m.slice(5,7)-1]+' '+m.slice(0,4),pd?'Paid '+(r.data.paid_on?fmtDate(r.data.paid_on):''):'Unpaid',pd?(r.data.method||'–'):'–',money(amt)],xs,{right:[4],w:[50,26,36,46,30],size:8.5,color:pd?C.INK:C.MUT})}));
-      if(!any)P.row(['No staff salaries in this period.'],[M],{color:C.MUT});
-      else{doc.setDrawColor(...C.LINE);doc.line(M,st.y-3.6,W-M,st.y-3.6);two('Total salaries paid',money(paidT),true);two('Salaries still unpaid',money(dueT))}
-    }
+      P.sec('Salaries paid');if(D.sals.length){D.sals.forEach(r=>{const s=finOf('staff').find(x=>x.id===r.data.staff_id);two((s?s.data.name+' ('+s.data.role+')':'Staff')+' – '+r.data.month+(r.data.paid_on?', paid '+fmtDate(r.data.paid_on):'')+(r.data.method?', '+r.data.method:''),money(r.data.amount))});two('Total salaries paid',money(D.salPaid),true)}else P.row(['No salaries marked as paid in this period.'],[M],{color:C.MUT})}
     if(what==='all'||what==='payments'){P.sec('Payments received');const xs=[M,M+24,M+82,M+125,W-M];D.pays.slice().reverse().forEach(x=>P.row([fmtDate(x.paid_on),patName(x.patient_id),x.method||'',x.received_by_name||'',money(x.amount)],xs,{right:[4],w:[22,56,42,40,30],size:8.5}));
       doc.setDrawColor(...C.LINE);doc.line(M,st.y-3.6,W-M,st.y-3.6);two('Total received',money(D.received),true)}
   }
@@ -1662,7 +1520,7 @@ function shell(content){
     <nav class="side-nav">
       <button class="${active==='list'?'on':''}" data-home="list">${icon('people')}<span>Patients</span><em>${db.patients.filter(p=>!isAes(p)).length}</em></button>
       <button class="${active==='aes'?'on':''}" data-home="aes">${icon('sparkle')}<span>Aesthetics</span><em>${db.patients.filter(isAes).length}</em></button>
-      <button class="${active==='appts'?'on':''}" data-home="appts">${icon('calendar')}<span>Appointments</span>${booking.waiting.length?`<em class="badge" title="Online bookings waiting">${booking.waiting.length}</em>`:''}</button>
+      <button class="${active==='appts'?'on':''}" data-home="appts">${icon('calendar')}<span>Appointments</span></button>
       <button class="${active==='msgs'?'on':''}" data-home="msgs">${icon('chat')}<span>Messages</span>${un?`<em class="badge">${un}</em>`:''}</button>
       ${isAdmin()?`<button class="${active==='earn'?'on':''}" data-home="earn">${icon('money')}<span>Earnings</span>${earnOpen()?'':`<em class="lockmark" title="PIN protected">${icon('lock')}</em>`}</button>`:''}
       <button class="${active==='settings'?'on':''}" data-act="settings">${icon('gear')}<span>Clinic &amp; account</span></button>
@@ -1852,7 +1710,6 @@ function settingsView(){
   <h1>Clinic & account</h1>
   <p class="small muted" style="margin:-6px 0 12px">App version: <b>${APP_VERSION}</b></p>
   ${brandingPanel()}
-  ${bookingSettingsPanel()}
   ${soundsPanel()}
   ${msgHtml()}
   ${activationPanel(admin)}
@@ -2514,13 +2371,6 @@ document.addEventListener('submit',async e=>{
     if(f.id==='ownerErase'){if(!view.ownerOk||!LOCAL||OWNER_TEST)return;if(v('own-erase')!=='ERASE')throw new Error('Type ERASE in capital letters to confirm.');
       await window.__LOCAL_DB.wipeAll();try{Object.keys(localStorage).filter(k=>k.startsWith('offline:')).forEach(k=>localStorage.removeItem(k))}catch(e){}
       alert('All clinics on this device were erased. The app will start fresh.');location.href=location.pathname;return}
-    if(f.id==='bookingForm'){const hours={};for(const [d] of BK_DAYS){const on=document.querySelector('[data-bkopen="'+d+'"]');if(on&&on.checked){const a=$('#bk-from-'+d).value,z=$('#bk-to-'+d).value;if(!a||!z||a>=z)throw new Error('Check the opening hours – closing time must be after opening time.');hours[d]=[a,z]}}
-      const off=String($('#bk-off').value||'').split(/[,\s]+/).map(x=>x.trim()).filter(x=>/^\d{4}-\d{2}-\d{2}$/.test(x));
-      const cfg={enabled:$('#bk-on').checked,slot:+$('#bk-slot').value,chairs:+$('#bk-chairs').value,days:+$('#bk-days').value,tz:300,hours,off};
-      if(cfg.enabled&&!Object.keys(hours).length)throw new Error('Tick at least one opening day.');
-      const upd={booking:cfg};if(!booking.code)upd.booking_code=newBookingCode();
-      const {error}=await sb.from('clinics').update(upd).eq('id',clinic.id);if(error)throw error;
-      booking.cfg=Object.assign({},BK_DEFAULT,cfg);if(upd.booking_code)booking.code=upd.booking_code;render();toast(cfg.enabled?'Online booking is on – print your QR poster':'Online booking saved (off)');return}
     if(f.id==='salForm'){const sf=earn.salForm;if(!sf)return;const month=(earn.anchor||today()).slice(0,7);
       const amt=Math.max(0,Math.round(parseFloat($('#sl-amt').value)||0));if(!(amt>0))throw new Error('Enter the amount paid.');
       const method=(document.querySelector('input[name=sl-method]:checked')||{}).value||'Cash';
@@ -2530,8 +2380,8 @@ document.addEventListener('submit',async e=>{
     if(f.id==='expForm'){const x=readExpForm();const amt=Math.round(parseFloat(x.amount)||0);
       if(!(amt>0))throw new Error('Enter the amount.');if(!x.date)throw new Error('Choose the date.');
       if(x.cat==='Materials'&&!x.item)throw new Error('Write the material name.');
-      await finSave('expense',{date:x.date,cat:x.cat,lab:x.cat==='Lab charges'?x.lab:'',item:x.item,pat:x.cat==='Lab charges'?x.pat:'',amount:amt,note:x.note,method:x.method});
-      earn.expForm={date:x.date,cat:x.cat,method:x.method};render();toast('Expense saved');return}
+      await finSave('expense',{date:x.date,cat:x.cat,lab:x.cat==='Lab charges'?x.lab:'',item:x.item,pat:x.cat==='Lab charges'?x.pat:'',amount:amt,note:x.note});
+      earn.expForm={date:x.date,cat:x.cat};render();toast('Expense saved');return}
     if(f.id==='staffForm'){const g=id=>($('#'+id)||{}).value||'';const name=g('sf-name').trim();if(!name)throw new Error('Write the name.');
       const data={name,role:g('sf-role'),roleName:g('sf-rolename').trim(),pay:g('sf-pay'),salary:Math.max(0,Math.round(parseFloat(g('sf-salary'))||0)),percent:Math.min(100,Math.max(0,parseFloat(g('sf-pct'))||0)),active:true};
       if(data.pay==='percent'&&!data.percent)throw new Error('Enter the percentage.');
@@ -2682,13 +2532,6 @@ document.addEventListener('click',async e=>{
   if(d.earnper){earn.period=d.earnper;render();return}
   if(d.earnnav!==undefined){earnShift(+d.earnnav);render();return}
   if(d.act==='earnCsv'){earnCsv();return}
-  if(d.bkaccept){if(b.disabled)return;b.disabled=true;try{await acceptBooking(d.bkaccept);await refreshAppts()}catch(err){toast(friendly(err));b.disabled=false}render();return}
-  if(d.bkdecline){if(!confirm('Decline this online booking? Please tell the patient by phone or WhatsApp.'))return;const {error}=await sb.from('online_bookings').update({status:'declined'}).eq('id',d.bkdecline);if(error){toast(friendly(error));return}
-    booking.waiting=booking.waiting.filter(x=>x.id!==d.bkdecline);booking.day=booking.day.filter(x=>x.id!==d.bkdecline);render();toast('Booking declined');return}
-  if(d.act==='bkCopy'){try{await navigator.clipboard.writeText(bookingLink());toast('Link copied')}catch(e){prompt('Copy this link:',bookingLink())}return}
-  if(d.act==='bkShare'){const l=bookingLink();if(navigator.share){navigator.share({title:clinic.name+' – book an appointment',text:'Book your appointment at '+clinic.name+':',url:l}).catch(()=>{})}else window.open('https://wa.me/?text='+encodeURIComponent('Book your appointment at '+clinic.name+': '+l),'_blank');return}
-  if(d.act==='bkPoster'){try{await bookingPoster()}catch(err){toast(friendly(err))}return}
-  if(d.act==='bkNewCode'){if(!confirm('Make a new booking code? The old QR code and link will stop working.'))return;const code=newBookingCode();const {error}=await sb.from('clinics').update({booking_code:code}).eq('id',clinic.id);if(error){toast(friendly(error));return}booking.code=code;render();toast('New QR code made – print the new poster');return}
   if(d.bgset!==undefined){if(!isAdmin())return;if(d.bgset==='photo'&&!branding.bgImage){view.bgPhoto=true;render();toast('Choose a photo for the background');return}
     try{await saveBranding({bg:d.bgset});view.bgPhoto=false;render();toast('Background changed')}catch(err){toast(friendly(err))}return}
   if(d.act==='logoRemove'){try{await saveBranding({logo:''});render();toast('Logo removed')}catch(err){toast(friendly(err))}return}
@@ -2705,8 +2548,6 @@ document.addEventListener('click',async e=>{
     try{await finSave('staff',Object.assign({},r.data,{active:false}),r.id);earn.staffEdit=null;render();toast('Removed from staff')}catch(err){toast(friendly(err))}return}
   if(d.salpaid){earn.salForm={staff_id:d.salpaid,amount:d.amt||''};render();const i=$('#sl-amt');if(i)i.focus();return}
   if(d.act==='salCancel'){earn.salForm=null;render();return}
-  if(d.paydent){const st=finOf('staff').find(x=>x.id===d.paydent);if(!st)return;earn.tab='staff';earn.salForm={staff_id:st.id,amount:payDue(st,(earn.anchor||today()).slice(0,7))};render();const i=$('#sl-amt');if(i)i.focus();return}
-  if(d.expslip){try{await expenseVoucher(d.expslip)}catch(err){toast(friendly(err))}return}
   if(d.salslip){try{await salarySlip(d.salslip)}catch(err){toast(friendly(err))}return}
   if(d.salunpaid){const month=(earn.anchor||today()).slice(0,7);const ex=finOf('salary').find(x=>x.data.staff_id===d.salunpaid&&x.data.month===month);
     if(ex){try{await finSave('salary',Object.assign({},ex.data,{status:'unpaid',paid_on:'',method:'',ref:''}),ex.id);render();toast('Marked as unpaid')}catch(err){toast(friendly(err))}}return}
@@ -2905,7 +2746,6 @@ document.addEventListener('change',async e=>{
   if(el.id==='restoreFile'&&el.files&&el.files[0]){try{const d=JSON.parse(await el.files[0].text());if(!d||d.app!=='clinic-records-local'||!d.tables)throw 0;
     view.restoreData=d;view.restoreInfo=(d.clinics||[]).join(', ')+' from '+fmtDate(String(d.exported||'').slice(0,10));view.confirm='restore';render();}catch(err){toast('That file is not a full backup from this app')}el.value='';return}
   if(el.id==='earn-print'){earn.printWhat=el.value;return}
-  if(el.dataset&&el.dataset.bkopen!==undefined){const d=el.dataset.bkopen;['bk-from-','bk-to-'].forEach(p=>{const x=$('#'+p+d);if(x)x.disabled=!el.checked});return}
   if((el.id==='brand-logo'||el.id==='brand-bg')&&el.files&&el.files[0]){const f=el.files[0];
     try{if(el.id==='brand-logo'){const png=f.type==='image/png'||f.type==='image/webp';const url=await resizeImage(f,320,png?'image/png':'image/jpeg',0.9);await saveBranding({logo:url});toast('Logo saved')}
       else{const url=await resizeImage(f,1600,'image/jpeg',0.72);await saveBranding({bg:'photo',bgImage:url});view.bgPhoto=false;toast('Background photo saved')}
