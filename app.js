@@ -2635,7 +2635,7 @@ function allergyText(p){const ans=(p.mh||{}).answers||{};const a=ans.allergy||an
 function rxNew(){return {id:'',date:today(),items:[],advice:RX_ADVICE,diag:''}}
 function rxTab(p){
   p.rx=p.rx||[];if(!view.rxDraft||(view.rxDraft.pid&&view.rxDraft.pid!==p.id))view.rxDraft=rxNew();view.rxDraft.pid=p.id;const d=view.rxDraft;const al=allergyText(p);const pen=penAllergy(p);const ro=isAcct()||readOnly();
-  const list=[...p.rx].sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+  const list=p.rx.map((r,i)=>[r,i]).sort((a,b)=>String(b[0].date).localeCompare(String(a[0].date))||(b[0].at||0)-(a[0].at||0)||b[1]-a[1]).map(x=>x[0]); // newest first; same day: last saved first
   return `${al?`<div class="msg ${pen?'err':'warn'}"><b>Allergy:</b> ${esc(al)}${pen?' – do not prescribe penicillins (Amoxicillin, Co-amoxiclav). Use the penicillin-allergy options.':''}</div>`:''}
   ${ro?'':`<section class="panel rxpanel"><div class="row"><h2 style="margin:0">${d.id?'Edit prescription':'New prescription'}</h2><span class="spacer"></span>${d.id?'<button class="btn small" data-act="rxCancel">Cancel edit</button>':''}</div>
     <div class="grid2"><label class="f"><span>Date</span><input type="date" id="rx-date" value="${esc(d.date||today())}"></label>
@@ -2663,7 +2663,7 @@ function rxSave(p){rxRead();const d=view.rxDraft;d.items=d.items.map(x=>({name:S
   if(!d.items.length){toast('Add at least one medicine');return null}
   if(penAllergy(p)&&d.items.some(x=>/amoxi|co-?amox|augment|ampic|penic/i.test(x.name))&&!confirm('This patient is allergic to penicillin, and this prescription contains a penicillin. Save anyway?'))return null;
   p.rx=p.rx||[];let r;if(d.id){r=p.rx.find(x=>x.id===d.id);Object.assign(r,{date:d.date,diag:d.diag,items:d.items,advice:d.advice,editedBy:me.name})}
-  else{r={id:uid(),date:d.date||today(),diag:d.diag,items:d.items,advice:d.advice,by:me.name,byPmdc:me.pmdc||''};p.rx.push(r)}
+  else{r={id:uid(),at:Date.now(),date:d.date||today(),diag:d.diag,items:d.items,advice:d.advice,by:me.name,byPmdc:me.pmdc||''};p.rx.push(r)}
   save();view.rxDraft=rxNew();return r}
 function rxPdf(p,r,mode){
   if(!window.jspdf){toast('The PDF tool did not load. Check your internet and reload the page.');return}
