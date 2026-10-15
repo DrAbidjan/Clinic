@@ -2660,7 +2660,7 @@ function rxPdf(p,r,mode){
   const P=pdfBase('Prescription');const {doc,W,M,CW,st,clean,C,ensure,kv}=P;
   const ag=age(p.dob);
   kv('Patient',p.first+' '+p.last,M,80);kv('Age / sex',[ag!==''?ag+' years':'',p.sex==='F'?'Female':p.sex==='M'?'Male':''].filter(Boolean).join(' · ')||'—',M+82,40);kv('Date',fmtDate(r.date),M+126,40);st.y+=12;
-  kv('Mobile',p.phone||'—',M,60);if(r.diag)kv('Diagnosis',r.diag,M+82,CW-82);st.y+=12;
+  if(r.diag){kv('Diagnosis',r.diag,M,CW);st.y+=12}
   const al=allergyText(p);if(al){doc.setFillColor(251,233,231);doc.rect(M,st.y-4,CW,7,'F');doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(179,38,30);doc.text(clean('Allergy: '+al),M+2,st.y+0.5);st.y+=9}
   doc.setDrawColor(...C.LINE);doc.line(M,st.y,W-M,st.y);st.y+=10;
   doc.setFont('times','bolditalic');doc.setFontSize(26);doc.setTextColor(...C.ACC);doc.text('Rx',M,st.y);st.y+=8;
