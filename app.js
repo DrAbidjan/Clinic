@@ -7,7 +7,7 @@
 const CONFIG=window.CLINIC_CONFIG||{SUPABASE_URL:'',SUPABASE_ANON_KEY:''};
 const LOCAL=!!window.__LOCAL_DB;
 /* Seller details shown on the Activation screen. Fill these in (keep the quote marks). */
-const APP_VERSION='15 Oct 2026 · appointments bar, update notice';
+const APP_VERSION='15 Oct 2026 · endodontic treatment steps';
 const SELLER={name:'',whatsapp:'03113124533',price:'Rs 25,000'};
 
 const $=s=>document.querySelector(s);
@@ -122,10 +122,11 @@ const MH=[
 const ALERT_KEYS={endo:'Endocarditis risk',anticoag:'Anticoagulant',bleed:'Bleeding disorder',bisphos:'MRONJ risk',allergy:'Allergy',pacemaker:'Pacemaker',diabetes:'Diabetes',epilepsy:'Epilepsy',hep:'Hepatitis B/C',pregnant:'Pregnant',radio:'Radiotherapy',infect:'Infection control',heart:'Cardiac'};
 const PROCS=[
  'Examination & diagnosis','Radiograph (BW / PA)','OPG','Scale & polish','Periodontal therapy (RSD)','Fluoride / fissure sealant',
- 'Filling – composite','Filling – amalgam','Filling – GIC','Root canal treatment','Post & core','Crown – zirconia','Crown – PFM','Crown – full metal',
+ 'Filling – composite','Filling – amalgam','Filling – GIC','Root canal treatment','Pulpotomy','Pulpectomy','RCT – complete cleaning, shaping & obturation','Intracanal medicament (when indicated)','Secure temporary restoration','Post & core','Crown – zirconia','Crown – PFM','Crown – full metal',
  'Crown – E-max','Crown – full ceramic','Bridge – PFM','Bridge – zirconia','Bridge – E-max','Bridge – full metal','Veneer','Inlay / onlay','Extraction','Surgical extraction','Implant placement','Implant crown','Pulpotomy (primary tooth)','Pulpectomy (primary tooth)','Stainless steel crown (SSC)','Space maintainer','Operculectomy','Exposure & bonding (impacted tooth)','Partial denture (acrylic)','Partial denture (cobalt chrome)','Complete denture','Night guard','Whitening','Review / recall'
 ];
-const PHASES=[[1,'Urgent / relief of pain'],[2,'Stabilisation & hygiene'],[3,'Restorative'],[4,'Prosthetic & replacement'],[5,'Maintenance & recall']];
+const ENDO_PHASE1=['Pulpotomy','Pulpectomy','Pulpotomy (primary tooth)','Pulpectomy (primary tooth)','RCT – complete cleaning, shaping & obturation','Intracanal medicament (when indicated)','Secure temporary restoration'];
+const PHASES=[[1,'Urgent / relief of pain & endodontic'],[2,'Stabilisation & hygiene'],[3,'Restorative'],[4,'Prosthetic & replacement'],[5,'Maintenance & recall']];
 const BPE_OPTS=['','0','1','2','3','4','*','X'];
 const REG_BODIES=['Punjab Healthcare Commission (PHC)','Sindh Healthcare Commission (SHCC)','KP Health Care Commission (KP-HCC)','Islamabad Healthcare Regulatory Authority (IHRA)','Other'];
 const regShort=b=>{const m=String(b||'').match(/\(([^)]+)\)/);return m?m[1]:(b&&b!=='Other'?b:'')};
@@ -2973,6 +2974,7 @@ document.addEventListener('change',async e=>{
   if(el.id==='restoreFile'&&el.files&&el.files[0]){try{const d=JSON.parse(await el.files[0].text());if(!d||d.app!=='clinic-records-local'||!d.tables)throw 0;
     view.restoreData=d;view.restoreInfo=(d.clinics||[]).join(', ')+' from '+fmtDate(String(d.exported||'').slice(0,10));view.confirm='restore';render();}catch(err){toast('That file is not a full backup from this app')}el.value='';return}
   if(el.id==='earn-print'){earn.printWhat=el.value;return}
+  if(el.id==='it-proc'&&ENDO_PHASE1.includes(el.value)){const ph=$('#it-phase');if(ph&&!isAes(P()))ph.value='1';return}
   if(el.dataset&&el.dataset.bkopen!==undefined){const d=el.dataset.bkopen;['bk-from-','bk-to-'].forEach(p=>{const x=$('#'+p+d);if(x)x.disabled=!el.checked});return}
   if((el.id==='brand-logo'||el.id==='brand-bg')&&el.files&&el.files[0]){const f=el.files[0];
     try{if(el.id==='brand-logo'){const png=f.type==='image/png'||f.type==='image/webp';const url=await resizeImage(f,320,png?'image/png':'image/jpeg',0.9);await saveBranding({logo:url});toast('Logo saved')}
