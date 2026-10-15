@@ -7,7 +7,7 @@
 const CONFIG=window.CLINIC_CONFIG||{SUPABASE_URL:'',SUPABASE_ANON_KEY:''};
 const LOCAL=!!window.__LOCAL_DB;
 /* Seller details shown on the Activation screen. Fill these in (keep the quote marks). */
-const APP_VERSION='16 Oct 2026 · neutral treatment names';
+const APP_VERSION='16 Oct 2026 · medical alerts on every page';
 const SELLER={name:'',whatsapp:'03113124533',price:'Rs 25,000'};
 
 const $=s=>document.querySelector(s);
@@ -119,7 +119,7 @@ const MH=[
  ['pregnant','Pregnant or breastfeeding'],
  ['other','Any other illness, operation or hospital stay']
 ];
-const ALERT_KEYS={endo:'Endocarditis risk',anticoag:'Anticoagulant',bleed:'Bleeding disorder',bisphos:'MRONJ risk',allergy:'Allergy',pacemaker:'Pacemaker',diabetes:'Diabetes',epilepsy:'Epilepsy',hep:'Hepatitis B/C',pregnant:'Pregnant',radio:'Radiotherapy',infect:'Infection control',heart:'Cardiac'};
+const ALERT_KEYS={endo:'Endocarditis risk',anticoag:'Anticoagulant',bleed:'Bleeding disorder',bisphos:'MRONJ risk',allergy:'Allergy',pacemaker:'Pacemaker',diabetes:'Diabetes',epilepsy:'Epilepsy',hep:'Hepatitis B/C',pregnant:'Pregnant / breastfeeding',radio:'Radiotherapy',infect:'Infection control',heart:'Cardiac'};
 const PROCS=[
  'Examination & diagnosis','Radiograph (BW / PA)','OPG','Scale & polish','Periodontal therapy (RSD)','Fluoride / fissure sealant',
  'Filling – composite','Filling – amalgam','Filling – GIC','Root canal treatment','Pulpotomy','Pulpectomy','RCT – complete cleaning, shaping & obturation','Intracanal medicament (when indicated)','Secure temporary restoration','Post & core','Crown – zirconia','Crown – PFM','Crown – full metal',
@@ -158,6 +158,10 @@ function sample(){
    planConsent:{agreed:false,date:''},
    notes:[{id:uid(),date:today(),title:'Examination',by:'',text:'C/O: pain lower left back, 3 days.\nO/E: 38 partially erupted, operculum inflamed. 26 MO caries. Naswar user – oral mucosa checked, no lesions. BPE 2/2/3 – 3/2/2.\nRx: irrigation, OHI, tobacco cessation advice.\nPlan: see treatment plan. Review 2 weeks.'}]};
 }
+function renameProc(n){n=String(n||'');
+  if(/^Botox\b/i.test(n))return n.replace(/^Botox\b/i,'Botulinum toxin (anti-wrinkle)');
+  if(n==='Hydra facial (hydradermabrasion)'||/^hydra ?facial$/i.test(n))return 'Hydradermabrasion facial';
+  return n}
 function migrate(p){
   p.chart=p.chart||{};p.surf=p.surf||{};p.rct=p.rct||{};p.toothNotes=p.toothNotes||{};p.imp=p.imp||{};p.mob=p.mob||{};p.pros=p.pros||{};p.plan=p.plan||[];p.notes=p.notes||[];
   p.bpe=p.bpe||['','','','','',''];p.planConsent=p.planConsent||{agreed:false,date:''};
@@ -166,6 +170,8 @@ function migrate(p){
     if(s==='caries'){p.surf[t]=p.surf[t]||{O:{t:'caries'}};delete p.chart[t];}
     else if(s==='fill'){p.surf[t]=p.surf[t]||{O:{t:'fill',m:'comp'}};delete p.chart[t];}
     else if(s==='rct'){p.rct[t]=true;delete p.chart[t];}}
+  // old brand names in treatment plans -> neutral names (Oct 2026). Clinical notes are never changed.
+  p.plan.forEach(i=>{const n=renameProc(i.proc);if(n!==i.proc){i.proc=n;p._renamed=true}});
   return p;
 }
 
@@ -314,7 +320,7 @@ function markDirty(id){if(!id)return;
   if(readOnly()){if(Date.now()-roToastAt>4000){toast('Read-only: the free trial has ended. Activate in Clinic & account.');roToastAt=Date.now()}
     loadPatients().then(()=>render()).catch(()=>{});return}dirty.add(id);setSync('saving');clearTimeout(flushT);flushT=setTimeout(flush,700)}
 function save(){markDirty(view.pid)}
-function strip(p){const o=Object.assign({},p);delete o.id;delete o._upd;delete o._by;return o}
+function strip(p){const o=Object.assign({},p);delete o.id;delete o._upd;delete o._by;delete o._renamed;return o}
 let flushing=false;
 async function flush(){
   clearTimeout(flushT);if(flushing||!dirty.size||!clinic)return;
@@ -335,6 +341,9 @@ async function loadPatients(){
     if(error)throw error;all.push(...data);if(data.length<1000)break;from+=1000;}
   const keep=db.patients.filter(p=>dirty.has(p.id));
   db.patients=all.map(toPatient).filter(p=>!dirty.has(p.id)).concat(keep);
+  // save renamed treatment names back once (only staff who may edit)
+  const ren=db.patients.filter(p=>p._renamed);ren.forEach(p=>delete p._renamed);
+  if(ren.length&&me&&!isAcct()&&!readOnly()){ren.forEach(p=>markDirty(p.id));setTimeout(()=>{try{flush()}catch(e){}},1500)}
 }
 async function loadTeam(){
   const {data,error}=await sb.from('members').select('user_id,name,role,joined_at,pmdc').eq('clinic_id',clinic.id).order('joined_at');
@@ -1291,6 +1300,12 @@ function aesMhExtra(p){const mh=p.mh;
     <label class="f"><span>Hair loss pattern (for hair patients)</span><input type="text" data-mhf="hairloss" id="mh-hairloss" placeholder="e.g. Norwood 4, Ludwig II, since 3 years" value="${esc(mh.hairloss||'')}"></label>
   </div>`}
 function alertsOf(p){const a=[];const ans=p.mh.answers;const K=isAes(p)?AES_ALERT_KEYS:ALERT_KEYS;for(const k in K){if(ans[k]&&ans[k].v==='y')a.push(K[k]);}return a}
+// Medical alert box shown on every tab of the patient file (not printed on prescriptions)
+function alertBox(p){const ans=p.mh.answers||{};const K=isAes(p)?AES_ALERT_KEYS:ALERT_KEYS;const rows=[];
+  for(const k in K){const a=ans[k];if(a&&a.v==='y'){const urgent=/allergy|preg|anticoag|thin|bleed|endo|bisphos/.test(k);rows.push(`<li class="${urgent?'urg':''}"><b>${esc(K[k])}</b>${a.d?': '+esc(a.d):''}</li>`)}}
+  const meds=String(p.mh.meds||'').trim();if(meds&&!/^(none|no|nil|-)$/i.test(meds))rows.push(`<li><b>Current medicines</b>: ${esc(meds)}</li>`);
+  if(!rows.length)return '';
+  return `<div class="alertbox" role="alert"><div class="ah">⚠ Medical alerts – check before treatment</div><ul>${rows.join('')}</ul></div>`}
 function mhStatus(p){
   if(!p.mh.date)return {cls:'warn',t:'No medical history'};
   if((Date.now()-new Date(p.mh.date))/864e5>365)return {cls:'warn',t:'MH over 12 months old'};
@@ -2126,7 +2141,8 @@ function patientView(){
   ${p.paperEntry?paperGuide(p):''}
   <div class="banner">
     <div class="row"><span class="nm">${esc(p.first)} ${esc(p.last)}</span><span class="spacer"></span><span class="small muted">${p.dob?fmtDate(p.dob)+' · '+age(p.dob)+' yrs':''}</span></div>
-    <div class="alerts">${al.map(a=>`<span class="pill alert">⚠ ${esc(a)}</span>`).join('')}<span class="pill ${ms.cls}">${ms.t}</span></div>
+    <div class="alerts"><span class="pill ${ms.cls}">${ms.t}</span></div>
+    ${alertBox(p)}
     ${p._upd?`<div class="small muted">Last saved ${fmtTime(p._upd)} by ${esc(p._by===user.id?'you':nameOf(p._by))}</div>`:''}
     <button class="apptbar" data-tab="appts" aria-pressed="${view.tab==='appts'}">${icon('calendar')}<span><b>Appointments</b><small>${view.tab==='appts'?"This patient's appointments – book a new one below":'Book or see appointments for this patient'}</small></span>${view.tab==='appts'?'':'<em>Open →</em>'}</button>
     <div class="tabs" role="tablist">${tabs.map(([k,l])=>`<button class="tab" role="tab" aria-selected="${view.tab===k}" data-tab="${k}">${l}</button>`).join('')}</div>
@@ -2671,7 +2687,6 @@ function rxPdf(p,r,mode){
   const ag=age(p.dob);
   kv('Patient',p.first+' '+p.last,M,80);kv('Age / sex',[ag!==''?ag+' years':'',p.sex==='F'?'Female':p.sex==='M'?'Male':''].filter(Boolean).join(' · ')||'—',M+82,40);kv('Date',fmtDate(r.date),M+126,40);st.y+=12;
   if(r.diag){kv('Diagnosis',r.diag,M,CW);st.y+=12}
-  const al=allergyText(p);if(al){doc.setFillColor(251,233,231);doc.rect(M,st.y-4,CW,7,'F');doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(179,38,30);doc.text(clean('Allergy: '+al),M+2,st.y+0.5);st.y+=9}
   doc.setDrawColor(...C.LINE);doc.line(M,st.y,W-M,st.y);st.y+=10;
   doc.setFont('times','bolditalic');doc.setFontSize(26);doc.setTextColor(...C.ACC);doc.text('Rx',M,st.y);st.y+=8;
   r.items.forEach((it,i)=>{ensure(18);doc.setFont('helvetica','bold');doc.setFontSize(11);doc.setTextColor(...C.INK);

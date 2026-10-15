@@ -548,6 +548,11 @@ html[data-bg=photo] .main{background:linear-gradient(color-mix(in srgb,var(--bg)
 .salmeth .chip:has(input:checked){border-color:var(--accent);background:var(--accent-soft);color:var(--accent);font-weight:600}
 .salmeth .chip input{margin:0}
 
+/* medical alert box (every patient tab) */
+.alertbox{border:1px solid var(--alert);background:var(--alert-soft);border-radius:12px;padding:10px 14px;margin-top:6px}
+.alertbox .ah{font-weight:700;color:var(--alert);font-size:.9rem;margin-bottom:4px}
+.alertbox ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:2px;font-size:.88rem;color:var(--ink)}
+.alertbox li.urg b{color:var(--alert)}
 /* prescriptions + note templates */
 .tplrow{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
 .rcttpl{display:flex;flex-direction:column;gap:10px;border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--accent-soft)}
