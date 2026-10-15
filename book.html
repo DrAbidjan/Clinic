@@ -99,7 +99,7 @@ const hm=n=>pad(Math.floor(n/60))+':'+pad(n%60);
 const nice=n=>{const h=Math.floor(n/60),m=n%60;return ((h+11)%12+1)+':'+pad(m)+(h<12?' am':' pm')};
 
 async function load(){
-  const ln=localNow();const from=ymdOf(ln);const to=ymdOf(new Date(ln.getTime()+61*864e5));
+  const ln=localNow();const from=ymdOf(ln);const to=ymdOf(new Date(ln.getTime()+150*864e5));
   const {data,error}=await sb.rpc('public_booking_info',{p_code:code,p_from:from,p_to:to});
   if(error)throw error;
   if(!data||!data.ok){fail('Online booking is switched off for this clinic at the moment. Please call the clinic to book.');return false}
@@ -107,7 +107,10 @@ async function load(){
   return true;
 }
 function buildDays(){
-  const ln=localNow();const n=Math.max(1,Math.min(60,+cfg.days||30));const off=new Set(cfg.off||[]);days=[];
+  const ln=localNow();const base=Math.max(1,Math.min(90,+cfg.days||30));const off=new Set(cfg.off||[]);days=[];
+  // holiday days inside the booking period are added on top, so patients can still book after the holiday (same rule as the server)
+  const t0=ymdOf(ln),tEnd=ymdOf(new Date(ln.getTime()+(base+60)*864e5));
+  const extra=cfg.holext===false?0:Math.min(60,[...off].filter(x=>x>=t0&&x<=tEnd).length);const n=base+extra;
   for(let i=0;i<=n;i++){const dt=new Date(Date.UTC(ln.getUTCFullYear(),ln.getUTCMonth(),ln.getUTCDate()+i));const ymd=ymdOf(dt);const h=(cfg.hours||{})[String(dt.getUTCDay())];
     if(off.has(ymd)){days.push({ymd,dt,slots:[],kind:'holiday'});continue}
     if(!h){days.push({ymd,dt,slots:[],kind:'closed'});continue}

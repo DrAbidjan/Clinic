@@ -966,6 +966,7 @@ function bookingSettingsPanel(){
       <div class="bkoff"><b class="small">Holidays – clinic closed</b>
         <div class="row" style="gap:8px;align-items:flex-end"><label class="f" style="flex:1;min-width:140px"><span>From</span><input type="date" id="bk-offfrom"></label><label class="f" style="flex:1;min-width:140px"><span>To (optional)</span><input type="date" id="bk-offto"></label><button type="button" class="btn small" data-act="bkOffAdd">Add holiday</button></div>
         <input type="hidden" id="bk-off" value="${esc((c.off||[]).join(','))}"><div id="bkOffList" class="row" style="gap:6px">${bkOffChips(c.off||[])}</div>
+        <label class="row small" style="gap:8px"><input type="checkbox" id="bk-holext" ${c.holext===false?'':'checked'} style="width:20px;height:20px"> Add holiday days to the booking period, (patients can still book after the holiday – e.g. 30 days + 5 holiday days = 35 days)</label>
         <label class="f"><span>Message for patients on holidays (optional)</span><input type="text" id="bk-offnote" maxlength="120" value="${esc(c.offNote||'')}" placeholder="e.g. Closed for Eid ul-Adha – open again on Monday"></label></div>
       <p class="small muted" style="margin:0">Times are Pakistan time. Existing appointments and bookings are never offered again.</p>
       <div class="row"><button class="btn primary" type="submit">Save booking settings</button></div>
@@ -2544,7 +2545,7 @@ document.addEventListener('submit',async e=>{
     if(f.id==='bookingForm'){const hours={};for(const [d] of BK_DAYS){const on=document.querySelector('[data-bkopen="'+d+'"]');if(on&&on.checked){const a=$('#bk-from-'+d).value,z=$('#bk-to-'+d).value;if(!a||!z||a>=z)throw new Error('Check the opening hours – closing time must be after opening time.');hours[d]=[a,z]}}
       if($('#bk-offfrom').value){const a0=$('#bk-offfrom').value,z0=$('#bk-offto').value||a0;const cur=String($('#bk-off').value||'').split(',').filter(Boolean);let dt=new Date(a0+'T12:00:00');let n=0;while(dt<=new Date(z0+'T12:00:00')&&n<62){cur.push(dt.toISOString().slice(0,10));dt.setDate(dt.getDate()+1);n++}bkOffSet(cur)}
       const off=[...new Set(String($('#bk-off').value||'').split(',').map(x=>x.trim()).filter(x=>/^\d{4}-\d{2}-\d{2}$/.test(x)&&x>=today()))].sort();
-      const cfg={enabled:$('#bk-on').checked,slot:+$('#bk-slot').value,chairs:+$('#bk-chairs').value,days:+$('#bk-days').value,tz:300,hours,off,offNote:String($('#bk-offnote').value||'').trim().slice(0,120)};
+      const cfg={enabled:$('#bk-on').checked,slot:+$('#bk-slot').value,chairs:+$('#bk-chairs').value,days:+$('#bk-days').value,tz:300,hours,off,offNote:String($('#bk-offnote').value||'').trim().slice(0,120),holext:$('#bk-holext').checked};
       if(cfg.enabled&&!Object.keys(hours).length)throw new Error('Tick at least one opening day.');
       const upd={booking:cfg};if(!booking.code)upd.booking_code=newBookingCode();
       const {error}=await sb.from('clinics').update(upd).eq('id',clinic.id);if(error)throw error;
