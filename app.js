@@ -7,7 +7,7 @@
 const CONFIG=window.CLINIC_CONFIG||{SUPABASE_URL:'',SUPABASE_ANON_KEY:''};
 const LOCAL=!!window.__LOCAL_DB;
 /* Seller details shown on the Activation screen. Fill these in (keep the quote marks). */
-const APP_VERSION='15 Oct 2026 · prescriptions, RCT canal lengths';
+const APP_VERSION='15 Oct 2026 · direct printing';
 const SELLER={name:'',whatsapp:'03113124533',price:'Rs 25,000'};
 
 const $=s=>document.querySelector(s);
@@ -491,13 +491,23 @@ function buildRecord(p,date){
   return doc.output('blob');
 }
 /* Phones: share sheet (Print / Save to Files). Computers: open PDF to print, or download it. */
+/* Print: open the computer's own print window (choose printer, colour / black & white, paper size, copies) straight away */
+function printPdfUrl(url){return new Promise(res=>{
+  document.querySelectorAll('iframe.printframe').forEach(f=>f.remove());
+  const f=document.createElement('iframe');f.className='printframe';f.setAttribute('aria-hidden','true');
+  f.style.cssText='position:fixed;right:0;bottom:0;width:1px;height:1px;border:0;opacity:0.01;pointer-events:none';
+  let done=false;const fallback=()=>{if(done)return;done=true;const w=window.open(url,'_blank');if(!w)toast('Allow pop-ups for this site to print, or use Save PDF');res(true)};
+  f.onload=()=>{setTimeout(()=>{try{f.contentWindow.focus();f.contentWindow.print();done=true;res(true)}catch(e){fallback()}},350)};
+  f.src=url;document.body.appendChild(f);
+  setTimeout(()=>{if(!done)fallback()},6000);
+  setTimeout(()=>{try{f.remove()}catch(e){}},10*60*1000)})}
 function deliverFile(blob,filename,mode){
   const touch=window.matchMedia&&matchMedia('(pointer:coarse)').matches;
   let file=null;try{file=new File([blob],filename,{type:blob.type})}catch(e){}
   if(touch&&file&&navigator.canShare&&navigator.canShare({files:[file]}))
     return navigator.share({files:[file],title:filename}).then(()=>true,e=>{if(e&&e.name==='AbortError')return false;throw e});
   const url=URL.createObjectURL(blob);setTimeout(()=>URL.revokeObjectURL(url),120000);
-  if(mode==='print'){const w=window.open(url,'_blank');if(w)return Promise.resolve(true);}
+  if(mode==='print')return printPdfUrl(url);
   const a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();return Promise.resolve(true);
 }
 async function printRecord(p,date,mode){

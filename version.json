@@ -1,12 +1,12 @@
 {
-  "version": "15 Oct 2026 · prescriptions, RCT canal lengths",
+  "version": "15 Oct 2026 · direct printing",
   "date": "15 October 2026",
   "notes": [
+    "Print opens your printer window straight away – choose printer, colour or black & white, paper size and copies",
+    "Prescription no longer shows the patient's mobile number",
     "New Prescription tab next to X-rays: ready antibiotic and pain-relief templates with doses, editable, with print",
     "Clinical notes: templates for RCT (with canal lengths), extraction, filling and scaling",
     "Treatment plan: new endodontic steps in Phase 1 – pulpotomy, pulpectomy, complete cleaning, shaping & obturation, intracanal medicament, secure temporary",
-    "Online booking: patients book a free time from your QR code or link",
-    "Holidays: patients see when the clinic is closed and can book after the holiday",
-    "All online bookings are kept – declined ones can be restored"
+    "Online booking: patients book a free time from your QR code or link"
   ]
 }
