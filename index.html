@@ -549,6 +549,15 @@ html[data-bg=photo] .main{background:linear-gradient(color-mix(in srgb,var(--bg)
 .salmeth .chip input{margin:0}
 
 /* online booking */
+.bknotify{border-left:4px solid var(--accent)}.bknotify.declined{border-left-color:var(--alert)}
+.bkhist summary{cursor:pointer;padding:2px 0}
+.bkhist-list{display:flex;flex-direction:column;gap:8px;margin-top:10px;max-height:520px;overflow:auto}
+.bkrow{display:grid;grid-template-columns:76px 1fr;gap:10px;padding:10px;border:1px solid var(--line);border-radius:12px;background:var(--paper)}
+.bkrow .tm{display:flex;flex-direction:column;font-variant-numeric:tabular-nums}.bkrow .tm span{font-size:.75rem;color:var(--muted)}
+.bkrow .ai{display:flex;flex-direction:column;gap:6px;min-width:0}
+.bkrow.declined,.bkrow.cancelled{opacity:.8;border-style:dashed}
+.bkoff{display:flex;flex-direction:column;gap:8px;border:1px solid var(--line);border-radius:12px;padding:12px}
+.bkoffchip{display:inline-flex;align-items:center;gap:4px}.bkoffchip .linkbtn{min-height:0;padding:0 2px;font-size:.8rem}
 .appt.online{border-color:#7fd3cb;background:linear-gradient(90deg,rgba(127,211,203,.16),var(--paper) 40%)}
 .bkwait{border-left:4px solid #26a69a}
 .bkhours{display:flex;flex-direction:column;gap:6px}

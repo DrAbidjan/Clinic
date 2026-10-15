@@ -35,6 +35,10 @@ h2{font-size:1.05rem;margin:0;font-weight:600}
 .day[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
 .day[aria-pressed="true"] span{color:#e1eeef}
 .day:disabled{opacity:.4;cursor:default}
+.day.closed,.day.full{opacity:.5;border-style:dashed}
+.day.holiday{background:#fdf1d8;border-color:#e8c46a;color:#7a5200}.day.holiday span{color:#9a6400}
+.day.holiday[aria-pressed="true"]{background:#9a6400;border-color:#9a6400;color:#fff}.day.holiday[aria-pressed="true"] span{color:#fdf1d8}
+.msg.hol{background:#fdf1d8;color:#7a5200}
 .slots{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:8px}
 .slot{border:1px solid var(--line);background:var(--paper);border-radius:10px;min-height:44px;font:inherit;font-weight:600;color:var(--accent);cursor:pointer;font-variant-numeric:tabular-nums}
 .slot[aria-pressed="true"]{background:var(--accent);color:#fff;border-color:var(--accent)}
@@ -102,8 +106,15 @@ async function load(){
 function buildDays(){
   const ln=localNow();const n=Math.max(1,Math.min(60,+cfg.days||30));const off=new Set(cfg.off||[]);days=[];
   for(let i=0;i<=n;i++){const dt=new Date(Date.UTC(ln.getUTCFullYear(),ln.getUTCMonth(),ln.getUTCDate()+i));const ymd=ymdOf(dt);const h=(cfg.hours||{})[String(dt.getUTCDay())];
-    if(!h||off.has(ymd))continue;const s=slotsFor(ymd,h);if(s.length)days.push({ymd,dt,slots:s})}
+    if(off.has(ymd)){days.push({ymd,dt,slots:[],kind:'holiday'});continue}
+    if(!h){days.push({ymd,dt,slots:[],kind:'closed'});continue}
+    const s=slotsFor(ymd,h);days.push({ymd,dt,slots:s,kind:s.length?'open':'full'})}
+  // drop closed/full days at the very start and end so the strip starts on a useful day
+  while(days.length&&days[days.length-1].kind!=='open'&&days[days.length-1].kind!=='holiday')days.pop();
 }
+function holRanges(h){const out=[];let st=h[0],pr=h[0];const f=x=>DN[x.dt.getUTCDay()]+' '+x.dt.getUTCDate()+' '+MN[x.dt.getUTCMonth()];
+  for(let i=1;i<=h.length;i++){const x=h[i];if(x&&(x.dt-pr.dt)===864e5){pr=x;continue}out.push(st===pr?f(st):f(st)+' – '+f(pr));st=pr=x}
+  return out.map(esc).join(', ')}
 function slotsFor(ymd,h){
   const slot=Math.max(10,Math.min(120,+cfg.slot||30)),chairs=Math.max(1,+cfg.chairs||1),earliest=Date.now()+30*60000,out=[];
   for(let m=mins(h[0]);m+slot<=mins(h[1]);m+=slot){const st=toUTC(ymd,hm(m)).getTime(),en=st+slot*60000;if(st<earliest)continue;
@@ -116,12 +127,16 @@ function header(){
   if(info.logo&&/^data:image\/(png|jpe?g|webp);base64,/.test(info.logo)){$('#logo img').src=info.logo;$('#logo').hidden=false}
 }
 function render(){
-  if(!days.length){main.innerHTML=`<div class="card"><h2>No free times right now</h2><p class="muted" style="margin:0">All times are booked. Please call the clinic${info.phone?' on <a href="tel:'+esc(info.phone)+'">'+esc(info.phone)+'</a>':''}.</p></div>`;return}
-  if(!selDay||!days.find(d=>d.ymd===selDay))selDay=days[0].ymd;
+  const open=days.filter(x=>x.kind==='open');
+  if(!open.length){const hol=days.filter(x=>x.kind==='holiday');main.innerHTML=`<div class="card"><h2>No free times right now</h2><p class="muted" style="margin:0">${hol.length?(esc(cfg.offNote||'The clinic is closed for holidays.')+' '):'All times are booked. '}Please call the clinic${info.phone?' on <a href="tel:'+esc(info.phone)+'">'+esc(info.phone)+'</a>':''}.</p></div>`;return}
+  if(!selDay||!days.find(d=>d.ymd===selDay))selDay=open[0].ymd;
   const d=days.find(x=>x.ymd===selDay);
-  main.innerHTML=`${notice?`<div class="msg err">${esc(notice)}</div>`:''}<div class="card"><h2><span class="step">1</span>Choose a day</h2>
-    <div class="days" role="group" aria-label="Days">${days.map(x=>`<button class="day" data-day="${x.ymd}" aria-pressed="${x.ymd===selDay}"><span>${DN[x.dt.getUTCDay()]}</span><b>${x.dt.getUTCDate()}</b><span>${MN[x.dt.getUTCMonth()]}</span></button>`).join('')}</div></div>
+  const hols=days.filter(x=>x.kind==='holiday');
+  const holTxt=hols.length?`<div class="msg hol"><b>Holiday – clinic closed:</b> ${holRanges(hols)}${cfg.offNote?'<br>'+esc(cfg.offNote):''}</div>`:'';
+  main.innerHTML=`${notice?`<div class="msg err">${esc(notice)}</div>`:''}${holTxt}<div class="card"><h2><span class="step">1</span>Choose a day</h2>
+    <div class="days" role="group" aria-label="Days">${days.map(x=>`<button class="day ${x.kind}" data-day="${x.ymd}" aria-pressed="${x.ymd===selDay}"><span>${DN[x.dt.getUTCDay()]}</span><b>${x.dt.getUTCDate()}</b><span>${x.kind==='holiday'?'Holiday':x.kind==='closed'?'Closed':x.kind==='full'?'Full':MN[x.dt.getUTCMonth()]}</span></button>`).join('')}</div></div>
   <div class="card"><h2><span class="step">2</span>Choose a time</h2><p class="small muted" style="margin:-4px 0 0">${DNL[d.dt.getUTCDay()]}, ${d.dt.getUTCDate()} ${MN[d.dt.getUTCMonth()]} · Pakistan time</p>
+    ${d.kind!=='open'?`<div class="msg ${d.kind==='holiday'?'hol':'err'}">${d.kind==='holiday'?'The clinic is closed on this day (holiday).'+(cfg.offNote?' '+esc(cfg.offNote)+(/[.!?]$/.test(cfg.offNote)?'':'.'):''):d.kind==='closed'?'The clinic is closed on this day.':'This day is fully booked.'} Please choose another day.</div>`:''}
     <div class="slots" role="group" aria-label="Free times">${d.slots.map(s=>`<button class="slot" data-slot="${s.iso}" aria-pressed="${s.iso===selSlot}">${nice(s.m)}</button>`).join('')}</div></div>
   <form class="card" id="f" ${selSlot?'':'hidden'}><h2><span class="step">3</span>Your details</h2>
     <div class="chosen" id="chosen"></div>
@@ -166,7 +181,7 @@ main.addEventListener('submit',async e=>{
   }
 });
 
-(async()=>{try{if(await load()){header();buildDays();render()}}catch(e){console.error(e);fail(/fetch|network/i.test(String(e&&e.message))?'No internet connection. Please check your connection and reload.':'The booking page could not load. Please call the clinic.')}})();
+(async()=>{try{if(await load()){header();buildDays();render()}}catch(e){fail(/fetch|network/i.test(String(e&&e.message))?'No internet connection. Please check your connection and reload.':'The booking page could not load. Please call the clinic.')}})();
 })();
 </script>
 </body>
