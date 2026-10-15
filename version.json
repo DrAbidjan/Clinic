@@ -1,13 +1,12 @@
 {
-  "version": "15 Oct 2026 · endodontic treatment steps",
+  "version": "15 Oct 2026 · prescriptions, RCT canal lengths",
   "date": "15 October 2026",
   "notes": [
+    "New Prescription tab next to X-rays: ready antibiotic and pain-relief templates with doses, editable, with print",
+    "Clinical notes: templates for RCT (with canal lengths), extraction, filling and scaling",
     "Treatment plan: new endodontic steps in Phase 1 – pulpotomy, pulpectomy, complete cleaning, shaping & obturation, intracanal medicament, secure temporary",
     "Online booking: patients book a free time from your QR code or link",
     "Holidays: patients see when the clinic is closed and can book after the holiday",
-    "All online bookings are kept – declined ones can be restored",
-    "Message the patient on WhatsApp or SMS after accepting or declining",
-    "Appointments now has its own bar at the top of every patient file",
-    "You are told when a new version of the app is ready"
+    "All online bookings are kept – declined ones can be restored"
   ]
 }

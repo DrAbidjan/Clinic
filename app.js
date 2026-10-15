@@ -7,7 +7,7 @@
 const CONFIG=window.CLINIC_CONFIG||{SUPABASE_URL:'',SUPABASE_ANON_KEY:''};
 const LOCAL=!!window.__LOCAL_DB;
 /* Seller details shown on the Activation screen. Fill these in (keep the quote marks). */
-const APP_VERSION='15 Oct 2026 · endodontic treatment steps';
+const APP_VERSION='15 Oct 2026 · prescriptions, RCT canal lengths';
 const SELLER={name:'',whatsapp:'03113124533',price:'Rs 25,000'};
 
 const $=s=>document.querySelector(s);
@@ -2105,9 +2105,9 @@ function patientView(){
   const p=P();if(!p){view.screen='list';return listView();}
   migrate(p);
   const al=alertsOf(p),ms=mhStatus(p);
-  const tabs=isAes(p)?[['details','Details'],['mh','Medical history'],['plan','Treatments'],['pay','Payments'],['notes','Clinical notes'],['xrays','Photos']]:[['details','Details'],['mh','Medical history'],['chart','Chart'],['plan','Treatment plan'],['pay','Payments'],['notes','Clinical notes'],['xrays','X-rays']];
+  const tabs=isAes(p)?[['details','Details'],['mh','Medical history'],['plan','Treatments'],['pay','Payments'],['notes','Clinical notes'],['xrays','Photos'],['rx','Prescription']]:[['details','Details'],['mh','Medical history'],['chart','Chart'],['plan','Treatment plan'],['pay','Payments'],['notes','Clinical notes'],['xrays','X-rays'],['rx','Prescription']];
   if(isAes(p)&&view.tab==='chart')view.tab='details';
-  let body={details:detailsTab,mh:mhTab,chart:chartTab,plan:planTab,pay:payTab,notes:notesTab,xrays:xrayTab,appts:apptTab}[view.tab](p);
+  let body={details:detailsTab,mh:mhTab,chart:chartTab,plan:planTab,pay:payTab,notes:notesTab,xrays:xrayTab,appts:apptTab,rx:rxTab}[view.tab](p);
   if(isAcct()&&['details','mh','chart','plan'].includes(view.tab))body=`<fieldset class="ro" disabled>${body}</fieldset>`;
   return `
   <header class="top"><button class="btn small" data-act="back">← Patients</button>${syncBadge()}</header>
@@ -2535,6 +2535,150 @@ function itemForm(f){
     <div class="row"><button class="btn primary" data-act="saveItem">Save item</button><button class="btn" data-act="cancelItem">Cancel</button></div>
   </div>`;
 }
+/* ---- Clinical note templates (RCT with canal lengths) ---- */
+const NOTE_TPLS={
+  general:['General','C/O: \nMH: reviewed, no changes\nO/E: \nRadiographs: \nDx: \nTx: \nLA: \nPost-op advice given\nNext visit: '],
+  rct:['Root canal (RCT)',''],
+  ext:['Extraction','C/O: \nMH: reviewed, no changes\nTooth: \nLA: \nProcedure: simple / surgical extraction, socket checked, haemostasis achieved\nPost-op instructions given (verbal and written)\nPrescription: \nNext visit: review if needed'],
+  fill:['Filling','Tooth: \nSurfaces: \nLA: \nCaries removed, cavity prepared\nLining / base: \nMaterial: composite / GIC / amalgam, shade: \nOcclusion checked\nNext visit: '],
+  scale:['Scaling & polishing','BPE: \nScaling: supragingival / subgingival, ultrasonic + hand\nPolishing done\nOral hygiene instructions given (brushing, interdental cleaning)\nNext visit: recall in 6 months']
+};
+const RCT_VISITS=['Access & pulp extirpation','Cleaning & shaping','Intracanal medicament change','Obturation','Complete RCT in one visit'];
+function canalsFor(t){t=String(t||'');const q=+t[0],n=+t[1];if(!q||!n)return ['Canal 1'];
+  const upper=[1,2,5,6].includes(q),prim=q>=5;
+  if((!prim&&n>=6)||(prim&&n>=4))return upper?['MB','MB2','DB','P']:['MB','ML','D'];
+  if(!prim&&n===4&&upper)return ['B','P'];
+  return ['Single canal'];}
+function rctTplPanel(p){if(!view.rct||view.rct.pid!==p.id){view.rct={pid:p.id};rctSetTooth(p,'')}const r=view.rct;const rows=r.canals||[];
+  return `<div class="rcttpl"><div class="grid3">
+    <label class="f"><span>Tooth (FDI)</span><input id="rct-tooth" value="${esc(r.tooth||'')}" placeholder="e.g. 36" maxlength="2" inputmode="numeric"></label>
+    <label class="f"><span>Visit</span><select id="rct-visit">${RCT_VISITS.map(v=>`<option ${r.visit===v?'selected':''}>${v}</option>`).join('')}</select></label>
+    <label class="f"><span>How measured</span><select id="rct-how">${['Apex locator + radiograph','Apex locator','Radiograph','Tactile'].map(v=>`<option ${r.how===v?'selected':''}>${v}</option>`).join('')}</select></label></div>
+    <div class="canaltab"><div class="ch"><span>Canal</span><span>Working length (mm)</span><span>Reference point</span><span>Master apical file</span><span></span></div>
+    ${rows.map((c,i)=>`<div class="cr"><input data-rcanal="${i}" data-k="name" value="${esc(c.name)}" aria-label="Canal name"><input data-rcanal="${i}" data-k="wl" value="${esc(c.wl||'')}" inputmode="decimal" placeholder="e.g. 21.5" aria-label="Working length mm"><input data-rcanal="${i}" data-k="ref" value="${esc(c.ref||'')}" placeholder="e.g. MB cusp" aria-label="Reference point"><input data-rcanal="${i}" data-k="maf" value="${esc(c.maf||'')}" placeholder="e.g. #25 / F2" aria-label="Master apical file"><button type="button" class="linkbtn" data-rcdel="${i}" aria-label="Remove canal">✕</button></div>`).join('')}
+    </div><div class="row"><button type="button" class="btn small" data-act="rctAddCanal">+ Add canal</button>${r.prev?`<span class="small muted">Lengths from ${fmtDate(r.prev)} filled in</span>`:''}</div>
+    <div class="grid3">
+      <label class="f"><span>Irrigation</span><input id="rct-irr" value="${esc(r.irr??'NaOCl 2.5%, EDTA 17%, saline')}"></label>
+      <label class="f"><span>Intracanal medicament (when indicated)</span><input id="rct-med" value="${esc(r.med??'Calcium hydroxide')}"></label>
+      <label class="f"><span>Temporary restoration</span><input id="rct-temp" value="${esc(r.temp??'Secure temporary – GIC / Cavit')}"></label>
+      <label class="f"><span>Obturation</span><input id="rct-obt" value="${esc(r.obt??'')}" placeholder="e.g. Gutta-percha, lateral condensation, AH Plus"></label>
+      <label class="f"><span>Next visit</span><input id="rct-next" value="${esc(r.next??'')}" placeholder="e.g. Obturation in 1 week"></label>
+    </div>
+    <div class="row"><button type="button" class="btn small primary" data-act="rctInsert">Insert into note</button><span class="small muted">The canal lengths are also kept for this tooth for the next visit.</span></div></div>`;}
+function rctRead(){const r=view.rct||(view.rct={});['tooth','visit','how','irr','med','temp','obt','next'].forEach(k=>{const e=$('#rct-'+k);if(e)r[k]=e.value.trim()});return r}
+function rctSetTooth(p,t){const r=view.rct||(view.rct={});r.tooth=t;const saved=(p.wl||{})[t];
+  if(saved&&saved.canals&&saved.canals.length){r.canals=saved.canals.map(c=>Object.assign({},c));r.prev=saved.date}else{r.canals=canalsFor(t).map(n=>({name:n,wl:'',ref:'',maf:''}));r.prev=''}}
+function rctText(r){const c=(r.canals||[]).filter(x=>x.name||x.wl);
+  return ['RCT – tooth '+(r.tooth||'?'),'Visit: '+(r.visit||''),
+    c.length?'Working length ('+(r.how||'')+'):\n'+c.map(x=>'  • '+x.name+': '+(x.wl?x.wl+' mm':'—')+(x.ref?' (ref. '+x.ref+')':'')+(x.maf?', MAF '+x.maf:'')).join('\n'):'',
+    r.irr?'Irrigation: '+r.irr:'',r.med?'Intracanal medicament: '+r.med:'',r.obt?'Obturation: '+r.obt:'',r.temp?'Temporary: '+r.temp:'',r.next?'Next visit: '+r.next:''].filter(Boolean).join('\n')}
+
+/* ---- Prescriptions ---- */
+const RX_MEDS={
+  'Antibiotics':[
+    {name:'Amoxicillin 500 mg capsule',dose:'1 capsule 3 times a day (every 8 hours)',days:'5',note:'',pen:1},
+    {name:'Amoxicillin 250 mg capsule',dose:'1–2 capsules 3 times a day',days:'5',note:'',pen:1},
+    {name:'Amoxicillin suspension 250 mg / 5 ml (child)',dose:'___ ml 3 times a day (dose by weight)',days:'5',note:'Shake well',pen:1},
+    {name:'Co-amoxiclav 625 mg tablet (Amoxicillin + Clavulanic acid)',dose:'1 tablet 2 times a day (every 12 hours)',days:'5',note:'Take at the start of a meal',pen:1},
+    {name:'Co-amoxiclav 1 g tablet (Amoxicillin + Clavulanic acid)',dose:'1 tablet 2 times a day (every 12 hours)',days:'5',note:'Take at the start of a meal',pen:1},
+    {name:'Co-amoxiclav suspension 228 mg / 5 ml (child)',dose:'___ ml 2 times a day (dose by weight)',days:'5',note:'Shake well',pen:1},
+    {name:'Metronidazole 400 mg tablet',dose:'1 tablet 3 times a day (every 8 hours)',days:'5',note:'After meals. No alcohol during and 48 hours after the course'},
+    {name:'Metronidazole 200 mg tablet',dose:'1 tablet 3 times a day',days:'5',note:'After meals. No alcohol'},
+    {name:'Metronidazole suspension 200 mg / 5 ml (child)',dose:'___ ml 3 times a day (dose by weight)',days:'5',note:'Shake well'},
+    {name:'Azithromycin 500 mg tablet',dose:'1 tablet once a day',days:'3',note:'For penicillin allergy. 1 hour before or 2 hours after food'},
+    {name:'Azithromycin suspension 200 mg / 5 ml (child)',dose:'___ ml once a day (dose by weight)',days:'3',note:'For penicillin allergy'},
+    {name:'Clindamycin 300 mg capsule',dose:'1 capsule 3 times a day (every 8 hours)',days:'5',note:'For penicillin allergy. With a full glass of water. Stop and call if diarrhoea'},
+    {name:'Clindamycin 150 mg capsule',dose:'2 capsules 3 times a day',days:'5',note:'For penicillin allergy. Stop and call if diarrhoea'},
+    {name:'Cephradine 500 mg capsule',dose:'1 capsule 4 times a day (every 6 hours)',days:'5',note:'',ceph:1},
+    {name:'Cefadroxil 500 mg capsule',dose:'1 capsule 2 times a day',days:'5',note:'',ceph:1},
+    {name:'Doxycycline 100 mg capsule',dose:'2 capsules on day 1, then 1 capsule once a day',days:'7',note:'Not for pregnancy or children under 12. Take with water, sitting up'}
+  ],
+  'Pain relief':[
+    {name:'Ibuprofen 400 mg tablet',dose:'1 tablet 3 times a day after meals',days:'3',note:'Not with stomach ulcer, asthma or kidney disease'},
+    {name:'Ibuprofen 600 mg tablet',dose:'1 tablet 3 times a day after meals',days:'3',note:'Not with stomach ulcer, asthma or kidney disease'},
+    {name:'Paracetamol 500 mg tablet',dose:'2 tablets every 6 hours when needed (max 8 tablets a day)',days:'3',note:''},
+    {name:'Paracetamol suspension 120 mg / 5 ml (child)',dose:'___ ml every 6 hours when needed (dose by weight)',days:'3',note:''},
+    {name:'Diclofenac sodium 50 mg tablet',dose:'1 tablet 2–3 times a day after meals',days:'3',note:'Not with stomach ulcer, asthma or kidney disease'},
+    {name:'Mefenamic acid 500 mg tablet',dose:'1 tablet 3 times a day after meals',days:'3',note:''},
+    {name:'Naproxen 500 mg tablet',dose:'1 tablet 2 times a day after meals',days:'3',note:''}
+  ],
+  'Mouth & stomach':[
+    {name:'Chlorhexidine 0.12% mouthwash',dose:'Rinse 10 ml for 1 minute, 2 times a day',days:'7',note:'Start the day after extraction. No food or drink for 30 minutes after'},
+    {name:'Warm salt-water rinses',dose:'Rinse gently 4 times a day',days:'5',note:'Start the day after extraction'},
+    {name:'Omeprazole 20 mg capsule',dose:'1 capsule once a day before breakfast',days:'5',note:'Stomach protection'},
+    {name:'Benzydamine mouthwash / spray',dose:'Rinse or spray 3 times a day',days:'5',note:'For sore mouth / ulcers'},
+    {name:'Triamcinolone oral paste',dose:'Apply a thin layer on the ulcer 2–3 times a day',days:'5',note:''}
+  ]
+};
+const RX_SETS=[
+  ['Dental abscess',['Amoxicillin 500 mg capsule','Metronidazole 400 mg tablet','Ibuprofen 400 mg tablet']],
+  ['Abscess – strong',['Co-amoxiclav 625 mg tablet (Amoxicillin + Clavulanic acid)','Metronidazole 400 mg tablet','Ibuprofen 400 mg tablet']],
+  ['Penicillin allergy',['Clindamycin 300 mg capsule','Ibuprofen 400 mg tablet']],
+  ['Penicillin allergy (Azithro)',['Azithromycin 500 mg tablet','Metronidazole 400 mg tablet','Paracetamol 500 mg tablet']],
+  ['After extraction',['Ibuprofen 400 mg tablet','Paracetamol 500 mg tablet','Chlorhexidine 0.12% mouthwash','Warm salt-water rinses']],
+  ['After RCT / pain',['Ibuprofen 400 mg tablet','Paracetamol 500 mg tablet']]
+];
+const RX_ADVICE='Complete the full course of antibiotics, even if you feel better.\nTake pain tablets after food.\nCall the clinic if swelling increases, you have a fever or difficulty swallowing or breathing.';
+const rxFind=n=>{for(const g in RX_MEDS){const m=RX_MEDS[g].find(x=>x.name===n);if(m)return m}return null};
+function penAllergy(p){const a=((p.mh||{}).answers||{}).allergy;return !!(a&&a.v==='y'&&/penic|amox|augment|ampic|co-?amox/i.test(a.d||''))}
+function allergyText(p){const ans=(p.mh||{}).answers||{};const a=ans.allergy||ans.a_allergy;return a&&a.v==='y'?(a.d||'Yes – details not written'):''}
+function rxNew(){return {id:'',date:today(),items:[],advice:RX_ADVICE,diag:''}}
+function rxTab(p){
+  p.rx=p.rx||[];if(!view.rxDraft||(view.rxDraft.pid&&view.rxDraft.pid!==p.id))view.rxDraft=rxNew();view.rxDraft.pid=p.id;const d=view.rxDraft;const al=allergyText(p);const pen=penAllergy(p);const ro=isAcct()||readOnly();
+  const list=[...p.rx].sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+  return `${al?`<div class="msg ${pen?'err':'warn'}"><b>Allergy:</b> ${esc(al)}${pen?' – do not prescribe penicillins (Amoxicillin, Co-amoxiclav). Use the penicillin-allergy options.':''}</div>`:''}
+  ${ro?'':`<section class="panel rxpanel"><div class="row"><h2 style="margin:0">${d.id?'Edit prescription':'New prescription'}</h2><span class="spacer"></span>${d.id?'<button class="btn small" data-act="rxCancel">Cancel edit</button>':''}</div>
+    <div class="grid2"><label class="f"><span>Date</span><input type="date" id="rx-date" value="${esc(d.date||today())}"></label>
+      <label class="f"><span>Diagnosis (optional)</span><input id="rx-diag" value="${esc(d.diag||'')}" placeholder="e.g. Acute apical abscess 36"></label></div>
+    <div class="rxsets"><b class="small">Ready sets</b><div class="row" style="gap:6px">${RX_SETS.map((s,i)=>`<button type="button" class="btn small ${pen&&s[1].some(n=>(rxFind(n)||{}).pen)?'rxwarn':''}" data-rxset="${i}">${esc(s[0])}</button>`).join('')}</div></div>
+    ${Object.entries(RX_MEDS).map(([g,ms])=>`<details class="rxgroup" ${g==='Antibiotics'?'open':''}><summary><b>${g}</b> <span class="small muted">tap to add</span></summary><div class="rxchips">${ms.map((m,i)=>`<button type="button" class="rxchip ${pen&&m.pen?'rxwarn':''}" data-rxadd="${esc(g)}|${i}"><b>${esc(m.name)}</b><span>${esc(m.dose)} · ${esc(m.days)} days</span></button>`).join('')}</div></details>`).join('')}
+    <div class="rxitems">${d.items.length?d.items.map((it,i)=>`<div class="rxitem"><em>${i+1}</em><div class="rxf">
+        <input data-rxf="${i}" data-k="name" value="${esc(it.name)}" placeholder="Medicine and strength" aria-label="Medicine">
+        <div class="grid3"><input data-rxf="${i}" data-k="dose" value="${esc(it.dose)}" placeholder="How to take" aria-label="How to take"><input data-rxf="${i}" data-k="days" value="${esc(it.days)}" placeholder="Days" aria-label="Days" inputmode="numeric"><input data-rxf="${i}" data-k="note" value="${esc(it.note||'')}" placeholder="Note (optional)" aria-label="Note"></div></div>
+        <button type="button" class="linkbtn" data-rxdel="${i}" aria-label="Remove">✕</button></div>`).join(''):'<div class="empty">Tap a ready set or a medicine above, or add your own.</div>'}
+      <div class="row"><button type="button" class="btn small" data-act="rxBlank">+ Add own medicine</button></div></div>
+    <label class="f"><span>Advice for the patient</span><textarea id="rx-advice" rows="3">${esc(d.advice||'')}</textarea></label>
+    <p class="small muted" style="margin:0">Ready doses are common adult doses – check them for each patient (age, weight, pregnancy, kidney/liver disease, other medicines) and change them if needed.</p>
+    <div class="row"><button class="btn primary" data-act="rxSave">Save prescription</button><button class="btn" data-act="rxSavePrint">${icon('doc')} Save & print</button></div>
+  </section>`}
+  <section class="panel"><h2>Prescriptions</h2>
+    ${list.length?list.map(r=>`<div class="rxsaved"><div class="row"><b>${fmtDate(r.date)}</b>${r.diag?`<span class="small muted">${esc(r.diag)}</span>`:''}<span class="spacer"></span><span class="small muted">${esc(r.by||'')}</span></div>
+      <ol>${r.items.map(it=>`<li><b>${esc(it.name)}</b> – ${esc(it.dose)}${it.days?' – '+esc(it.days)+' days':''}${it.note?` <span class="muted">(${esc(it.note)})</span>`:''}</li>`).join('')}</ol>
+      <div class="row"><button class="btn small primary" data-rxprint="${r.id}">${icon('doc')} Print</button><button class="btn small" data-rxsavepdf="${r.id}">Save PDF</button>${ro?'':`<button class="btn small" data-rxedit="${r.id}">Edit</button><button class="btn small" data-rxcopy="${r.id}">Copy as new</button><button class="btn small danger" data-rxremove="${r.id}">Delete</button>`}</div></div>`).join(''):'<div class="empty">No prescriptions yet.</div>'}
+  </section>`;
+}
+function rxRead(){const d=view.rxDraft;if(!d)return;const g=k=>{const e=$('#rx-'+k);return e?e.value:undefined};
+  if(g('date')!==undefined)d.date=g('date');if(g('diag')!==undefined)d.diag=g('diag').trim();if(g('advice')!==undefined)d.advice=g('advice')}
+function rxSave(p){rxRead();const d=view.rxDraft;d.items=d.items.map(x=>({name:String(x.name||'').trim(),dose:String(x.dose||'').trim(),days:String(x.days||'').trim(),note:String(x.note||'').trim()})).filter(x=>x.name);
+  if(!d.items.length){toast('Add at least one medicine');return null}
+  if(penAllergy(p)&&d.items.some(x=>/amoxi|co-?amox|augment|ampic|penic/i.test(x.name))&&!confirm('This patient is allergic to penicillin, and this prescription contains a penicillin. Save anyway?'))return null;
+  p.rx=p.rx||[];let r;if(d.id){r=p.rx.find(x=>x.id===d.id);Object.assign(r,{date:d.date,diag:d.diag,items:d.items,advice:d.advice,editedBy:me.name})}
+  else{r={id:uid(),date:d.date||today(),diag:d.diag,items:d.items,advice:d.advice,by:me.name,byPmdc:me.pmdc||''};p.rx.push(r)}
+  save();view.rxDraft=rxNew();return r}
+function rxPdf(p,r,mode){
+  if(!window.jspdf){toast('The PDF tool did not load. Check your internet and reload the page.');return}
+  const P=pdfBase('Prescription');const {doc,W,M,CW,st,clean,C,ensure,kv}=P;
+  const ag=age(p.dob);
+  kv('Patient',p.first+' '+p.last,M,80);kv('Age / sex',[ag!==''?ag+' years':'',p.sex==='F'?'Female':p.sex==='M'?'Male':''].filter(Boolean).join(' · ')||'—',M+82,40);kv('Date',fmtDate(r.date),M+126,40);st.y+=12;
+  kv('Mobile',p.phone||'—',M,60);if(r.diag)kv('Diagnosis',r.diag,M+82,CW-82);st.y+=12;
+  const al=allergyText(p);if(al){doc.setFillColor(251,233,231);doc.rect(M,st.y-4,CW,7,'F');doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(179,38,30);doc.text(clean('Allergy: '+al),M+2,st.y+0.5);st.y+=9}
+  doc.setDrawColor(...C.LINE);doc.line(M,st.y,W-M,st.y);st.y+=10;
+  doc.setFont('times','bolditalic');doc.setFontSize(26);doc.setTextColor(...C.ACC);doc.text('Rx',M,st.y);st.y+=8;
+  r.items.forEach((it,i)=>{ensure(18);doc.setFont('helvetica','bold');doc.setFontSize(11);doc.setTextColor(...C.INK);
+    const nl=doc.splitTextToSize(clean((i+1)+'.  '+it.name),CW-6);doc.text(nl,M+2,st.y);st.y+=nl.length*5;
+    doc.setFont('helvetica','normal');doc.setFontSize(10);doc.setTextColor(...C.INK);
+    const dl=doc.splitTextToSize(clean(it.dose+(it.days?'   –   for '+it.days+' days':'')),CW-10);doc.text(dl,M+8,st.y);st.y+=dl.length*4.8;
+    if(it.note){doc.setFontSize(9);doc.setTextColor(...C.MUT);const ml=doc.splitTextToSize(clean(it.note),CW-10);doc.text(ml,M+8,st.y);st.y+=ml.length*4.4}
+    st.y+=3.5});
+  if(r.advice){ensure(24);st.y+=3;doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(...C.ACC);doc.text('ADVICE',M,st.y);st.y+=5;doc.setFont('helvetica','normal');doc.setFontSize(9.5);doc.setTextColor(...C.INK);
+    const al2=doc.splitTextToSize(clean(r.advice),CW);doc.text(al2,M,st.y);st.y+=al2.length*4.6}
+  st.y=Math.max(st.y+16,240);if(st.y>262){doc.addPage();st.y=40}doc.setDrawColor(...C.INK);doc.line(W-M-75,st.y,W-M,st.y);doc.setFontSize(8.5);doc.setTextColor(...C.MUT);
+  doc.text('Dentist signature & stamp',W-M-75,st.y+4.5);doc.setTextColor(...C.INK);doc.setFont('helvetica','bold');doc.text(clean(r.by||me.name),W-M-75,st.y+9.5);doc.setFont('helvetica','normal');
+  if(r.byPmdc)doc.text(clean('PMDC No. '+r.byPmdc),W-M-75,st.y+14);
+  const pages=doc.getNumberOfPages();for(let i=1;i<=pages;i++){doc.setPage(i);doc.setFontSize(7.5);doc.setTextColor(...C.MUT);doc.text(clean(clinic.name)+' – prescription for '+clean(p.first+' '+p.last),M,290);doc.text('Page '+i+' of '+pages,W-M,290,{align:'right'})}
+  return deliverFile(doc.output('blob'),('Prescription_'+p.first+'_'+p.last+'_'+r.date+'.pdf').replace(/[^\w.\-]+/g,'_'),mode);
+}
+
 function notesTab(p){
   const ns=[...p.notes].sort((a,b)=>b.date.localeCompare(a.date));
   return `<section class="panel">
@@ -2550,7 +2694,9 @@ function notesTab(p){
       <label class="f"><span>Visit type</span><select id="n-title">${['Examination','Emergency','Treatment','Hygiene','Review','Phone call','Other'].map(o=>`<option>${o}</option>`).join('')}</select></label>
     </div>
     <label class="f"><span>Note</span><textarea id="n-text" rows="6" placeholder="C/O: \nO/E: \nDx: \nTx: \nNext visit: "></textarea></label>
-    <div class="row"><button class="btn small" data-act="template">Insert template</button><span class="spacer"></span><button class="btn primary" data-act="addNote">Save note</button></div>
+    <div class="tplrow"><b class="small">Template</b>${Object.entries(NOTE_TPLS).map(([k,v])=>`<button type="button" class="btn small ${view.noteTpl===k?'primary':''}" data-ntpl="${k}">${v[0]}</button>`).join('')}</div>
+    ${view.noteTpl==='rct'?rctTplPanel(p):''}
+    <div class="row"><span class="spacer"></span><button class="btn primary" data-act="addNote">Save note</button></div>
   </section>
   <section class="panel">
     <h2>Treatment history</h2>
@@ -2847,7 +2993,31 @@ document.addEventListener('click',async e=>{
   if(d.role){const {error}=await sb.rpc('set_member_role',{p_clinic:clinic.id,p_user:d.uid,p_role:d.role});if(error){toast(friendly(error));return}await loadTeam();render();toast('Role changed');return}
   if(d.askrm){view.confirm='rm:'+d.askrm;render();return}
   if(d.rm){const {error}=await sb.from('members').delete().eq('clinic_id',clinic.id).eq('user_id',d.rm);if(error){toast(friendly(error));return}view.confirm=null;await loadTeam();render();toast('Removed from the clinic');return}
+  if(d.ntpl){const keep=$('#n-text')?$('#n-text').value:'';const keepT=$('#n-title')?$('#n-title').value:'';view.noteTpl=d.ntpl;
+    if(d.ntpl==='rct'){if(!view.rct||!view.rct.canals||view.rct.pid!==p.id){view.rct={pid:p.id};rctSetTooth(p,'')}render();$('#n-text').value=keep;$('#n-title').value='Treatment';return}
+    render();const tx=$('#n-text');tx.value=(keep.trim()?keep.trim()+'\n\n':'')+NOTE_TPLS[d.ntpl][1];$('#n-title').value=keepT||'Treatment';tx.focus();return}
+  if(d.rcdel!==undefined){rctRead();const keep=$('#n-text').value;view.rct.canals.splice(+d.rcdel,1);render();$('#n-text').value=keep;return}
+  if(d.rxset!==undefined){rxRead();const set=RX_SETS[+d.rxset];const pen=penAllergy(p);
+    if(pen&&set[1].some(n=>(rxFind(n)||{}).pen)&&!confirm('This patient is allergic to penicillin. This set contains a penicillin. Add it anyway?'))return;
+    set[1].forEach(n=>{const m=rxFind(n);if(m&&!view.rxDraft.items.some(x=>x.name===m.name))view.rxDraft.items.push({name:m.name,dose:m.dose,days:m.days,note:m.note})});render();return}
+  if(d.rxadd){rxRead();const [g,i]=d.rxadd.split('|');const m=RX_MEDS[g][+i];
+    if(penAllergy(p)&&m.pen&&!confirm('This patient is allergic to penicillin. Add '+m.name+' anyway?'))return;
+    if(m.ceph&&penAllergy(p)&&!confirm('Penicillin allergy: cephalosporins can cause a reaction in some patients. Add anyway?'))return;
+    view.rxDraft.items.push({name:m.name,dose:m.dose,days:m.days,note:m.note});render();toast('Added – you can change the dose below');return}
+  if(d.rxdel!==undefined){rxRead();view.rxDraft.items.splice(+d.rxdel,1);render();return}
+  if(d.rxprint||d.rxsavepdf){const r=(p.rx||[]).find(x=>x.id===(d.rxprint||d.rxsavepdf));if(r){try{await rxPdf(p,r,d.rxprint?'print':'save')}catch(err){toast(friendly(err))}}return}
+  if(d.rxedit){const r=p.rx.find(x=>x.id===d.rxedit);view.rxDraft=Object.assign(JSON.parse(JSON.stringify(r)),{pid:p.id});render();window.scrollTo(0,0);return}
+  if(d.rxcopy){const r=p.rx.find(x=>x.id===d.rxcopy);view.rxDraft=Object.assign(JSON.parse(JSON.stringify(r)),{id:'',date:today(),pid:p.id});render();window.scrollTo(0,0);toast('Copied – change it and save');return}
+  if(d.rxremove){if(!confirm('Delete this prescription?'))return;p.rx=p.rx.filter(x=>x.id!==d.rxremove);save();render();toast('Prescription deleted');return}
   switch(d.act){
+    case 'rctAddCanal':{rctRead();const keep=$('#n-text').value;view.rct.canals.push({name:'Canal '+(view.rct.canals.length+1),wl:'',ref:'',maf:''});render();$('#n-text').value=keep;break}
+    case 'rctInsert':{const r=rctRead();if(!r.tooth){toast('Write the tooth number first');break}
+      const tx=$('#n-text');tx.value=(tx.value.trim()?tx.value.trim()+'\n\n':'')+rctText(r);
+      p.wl=p.wl||{};p.wl[r.tooth]={date:$('#n-date').value||today(),canals:(r.canals||[]).filter(c=>c.wl||c.name).map(c=>Object.assign({},c))};save();
+      $('#n-title').value='Treatment';toast('Inserted – check the note and tap Save note');tx.scrollIntoView({block:'center'});break}
+    case 'rxBlank':{rxRead();view.rxDraft.items.push({name:'',dose:'',days:'',note:''});render();const ins=document.querySelectorAll('[data-rxf][data-k=name]');if(ins.length)ins[ins.length-1].focus();break}
+    case 'rxCancel':{view.rxDraft=rxNew();render();break}
+    case 'rxSave':case 'rxSavePrint':{const r=rxSave(p);if(!r)break;render();toast('Prescription saved');if(d.act==='rxSavePrint'){try{await rxPdf(p,r,'print')}catch(err){toast(friendly(err))}}break}
     case 'reload':location.reload();break;
     case 'showRecover':view.email=$('#li-email')?$('#li-email').value:'';view.showRecover=!view.showRecover;view.msg=null;render();break;
     case 'rcDone':if(!$('#rc-ok').checked){toast('Tick the box once you have saved the code');break;}view.recoveryCode=null;clinic.has_recovery=true;view.screen='welcome';render();Sound.play('success');break;
@@ -2945,7 +3115,6 @@ document.addEventListener('click',async e=>{
       if(f.doneDate){it.doneDate=f.doneDate;it.doneBy=f.doneBy}
       const dn=$('#it-done')&&$('#it-done').value;if(dn){it.status='completed';it.doneDate=dn;it.doneBy=it.doneBy||me.name}
       const ix=p.plan.findIndex(x=>x.id===it.id);if(ix>=0)p.plan[ix]=it;else p.plan.push(it);view.addItem=null;save();render();toast('Item saved');break;}
-    case 'template':$('#n-text').value='C/O: \nMH: reviewed, no changes\nO/E: \nRadiographs: \nDx: \nTx: \nLA: \nPost-op advice given\nNext visit: ';break;
     case 'addNote':{if(isAcct()){toast('Clinical notes are written by dentists.');break;}const t=$('#n-text').value.trim();if(!t){toast('Write the note first');break;}
       p.notes.push({id:uid(),date:$('#n-date').value||today(),title:$('#n-title').value,by:me.name,text:t});save();render();toast('Note saved');break;}
     case 'copyCode':{const c=clinic.invite_code;
@@ -2971,6 +3140,7 @@ async function importPatients(list){
 }
 document.addEventListener('change',async e=>{
   const el=e.target;
+  if(el.id==='rct-tooth'){const p=P();if(!p)return;rctRead();const keep=$('#n-text').value;rctSetTooth(p,el.value.trim());render();$('#n-text').value=keep;return}
   if(el.id==='restoreFile'&&el.files&&el.files[0]){try{const d=JSON.parse(await el.files[0].text());if(!d||d.app!=='clinic-records-local'||!d.tables)throw 0;
     view.restoreData=d;view.restoreInfo=(d.clinics||[]).join(', ')+' from '+fmtDate(String(d.exported||'').slice(0,10));view.confirm='restore';render();}catch(err){toast('That file is not a full backup from this app')}el.value='';return}
   if(el.id==='earn-print'){earn.printWhat=el.value;return}
@@ -3001,6 +3171,8 @@ document.addEventListener('change',async e=>{
 });
 document.addEventListener('input',e=>{
   const el=e.target;
+  if(el.dataset&&el.dataset.rxf!==undefined&&view.rxDraft){const it=view.rxDraft.items[+el.dataset.rxf];if(it)it[el.dataset.k]=el.value;return}
+  if(el.dataset&&el.dataset.rcanal!==undefined&&view.rct){const c=view.rct.canals[+el.dataset.rcanal];if(c)c[el.dataset.k]=el.value;return}
   if((el.id==='xr-b'||el.id==='xr-c')&&view.xrf){view.xrf[el.id==='xr-b'?'b':'c']=+el.value;const im=document.querySelector('.ximg img');if(im)im.style.filter=`brightness(${view.xrf.b}%) contrast(${view.xrf.c}%)${view.xrf.inv?' invert(1)':''}`;return}
   if(['pay-amt','pay-disc'].includes(el.id)){if(el.id==='pay-disc'&&el.tagName==='SELECT'){view.payForm=readPayForm(P()).f}const pv=$('#payPreview'),p=P();if(pv&&p)pv.innerHTML=payPreview(p);return}
   if(el.id==='search'){view.q=el.value;const pos=el.selectionStart;render();const s=$('#search');s.focus();s.setSelectionRange(pos,pos);return}

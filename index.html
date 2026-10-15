@@ -56,7 +56,7 @@ button{cursor:pointer}
 .btn.danger{color:var(--alert);border-color:var(--alert)}
 .btn.small{padding:5px 10px;min-height:34px;font-size:.85rem}
 .btn:focus-visible,.tooth:focus-visible,.tab:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-input[type=text],input[type=email],input[type=password],input[type=time],input[type=date],input[type=number],input[type=tel],input[type=search],select,textarea{width:100%;border:1px solid var(--line);background:var(--paper);border-radius:9px;padding:9px 11px;min-height:42px}
+input:not([type]),input[type=text],input[type=email],input[type=password],input[type=time],input[type=date],input[type=number],input[type=tel],input[type=search],select,textarea{width:100%;border:1px solid var(--line);background:var(--paper);border-radius:9px;padding:9px 11px;min-height:42px}
 textarea{min-height:80px;resize:vertical}
 label.f{display:flex;flex-direction:column;gap:4px;font-size:.82rem;color:var(--muted);min-width:0}
 label.f > span{font-weight:500}
@@ -548,6 +548,28 @@ html[data-bg=photo] .main{background:linear-gradient(color-mix(in srgb,var(--bg)
 .salmeth .chip:has(input:checked){border-color:var(--accent);background:var(--accent-soft);color:var(--accent);font-weight:600}
 .salmeth .chip input{margin:0}
 
+/* prescriptions + note templates */
+.tplrow{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.rcttpl{display:flex;flex-direction:column;gap:10px;border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--accent-soft)}
+.canaltab{display:flex;flex-direction:column;gap:6px}
+.canaltab .ch,.canaltab .cr{display:grid;grid-template-columns:1fr 1.1fr 1.3fr 1.1fr 28px;gap:6px;align-items:center}
+.canaltab .ch span{font-size:.75rem;color:var(--muted);font-weight:600}
+.canaltab input{min-height:38px;padding:6px 8px;width:100%;min-width:0}
+.rxitem .rxf input{min-width:0}
+@media (max-width:640px){.canaltab .ch{display:none}.canaltab .cr{grid-template-columns:1fr 1fr 28px}.canaltab .cr input[data-k=ref],.canaltab .cr input[data-k=maf]{grid-column:span 1}}
+.rxpanel .rxsets{display:flex;flex-direction:column;gap:6px}
+.rxgroup{border:1px solid var(--line);border-radius:12px;padding:8px 12px}.rxgroup summary{cursor:pointer}
+.rxchips{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:6px;margin-top:8px}
+.rxchip{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;border:1px solid var(--line);background:var(--paper);border-radius:10px;padding:8px 10px;cursor:pointer;font:inherit;color:var(--ink)}
+.rxchip b{font-size:.86rem}.rxchip span{font-size:.75rem;color:var(--muted)}
+.rxchip:hover{border-color:var(--accent)}
+.rxwarn{border-color:var(--alert)!important;background:var(--alert-soft)!important}
+.rxitems{display:flex;flex-direction:column;gap:8px}
+.rxitem{display:grid;grid-template-columns:26px 1fr 28px;gap:8px;align-items:start;border:1px solid var(--line);border-radius:12px;padding:10px;background:var(--paper)}
+.rxitem em{font-style:normal;font-weight:700;color:var(--accent);padding-top:10px}
+.rxitem .rxf{display:flex;flex-direction:column;gap:6px}.rxitem .rxf input[data-k=name]{font-weight:600}
+.rxsaved{border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:6px;margin-bottom:8px}
+.rxsaved ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:3px}
 /* update notice */
 .updbar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:60;width:min(640px,calc(100% - 24px));display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:12px 14px;border-radius:14px;background:#0B2227;color:#F4F6F4;box-shadow:0 8px 30px rgba(0,0,0,.3);border:1px solid #1f5f6b}
 .updbar .updtxt{flex:1;min-width:200px;display:flex;flex-direction:column;gap:2px}.updbar .updtxt span{font-size:.82rem;color:#9FBFBB}
