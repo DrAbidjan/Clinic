@@ -38,7 +38,10 @@ h2{font-size:1.05rem;margin:0;font-weight:600}
 .day.closed,.day.full{opacity:.5;border-style:dashed}
 .day.holiday{background:#fdf1d8;border-color:#e8c46a;color:#7a5200}.day.holiday span{color:#9a6400}
 .day.holiday[aria-pressed="true"]{background:#9a6400;border-color:#9a6400;color:#fff}.day.holiday[aria-pressed="true"] span{color:#fdf1d8}
-.msg.hol{background:#fdf1d8;color:#7a5200}
+.msg.hol{background:#fdf1d8;color:#7a5200;display:flex;flex-direction:column;gap:8px}
+.msg .jump{align-self:flex-start;min-height:40px;font-size:.92rem;background:#fff;color:#7a5200;border-color:#e8c46a}
+.holrow{display:flex;flex-direction:column;gap:6px;border-top:1px solid #f0d99a;padding-top:8px}
+.msg.err .jump{color:var(--alert)}
 .slots{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:8px}
 .slot{border:1px solid var(--line);background:var(--paper);border-radius:10px;min-height:44px;font:inherit;font-weight:600;color:var(--accent);cursor:pointer;font-variant-numeric:tabular-nums}
 .slot[aria-pressed="true"]{background:var(--accent);color:#fff;border-color:var(--accent)}
@@ -112,9 +115,13 @@ function buildDays(){
   // drop closed/full days at the very start and end so the strip starts on a useful day
   while(days.length&&days[days.length-1].kind!=='open'&&days[days.length-1].kind!=='holiday')days.pop();
 }
-function holRanges(h){const out=[];let st=h[0],pr=h[0];const f=x=>DN[x.dt.getUTCDay()]+' '+x.dt.getUTCDate()+' '+MN[x.dt.getUTCMonth()];
-  for(let i=1;i<=h.length;i++){const x=h[i];if(x&&(x.dt-pr.dt)===864e5){pr=x;continue}out.push(st===pr?f(st):f(st)+' – '+f(pr));st=pr=x}
-  return out.map(esc).join(', ')}
+const fday=x=>DN[x.dt.getUTCDay()]+' '+x.dt.getUTCDate()+' '+MN[x.dt.getUTCMonth()];
+function holGroups(){const g=[];days.forEach((x,i)=>{if(x.kind!=='holiday')return;const last=g[g.length-1];
+    if(last&&days[i-1]===last.to)last.to=x;else g.push({from:x,to:x})});
+  g.forEach(r=>{r.next=days.find(x=>x.kind==='open'&&x.ymd>r.to.ymd)||null});return g}
+const holSpan=r=>r.from===r.to?'on '+fday(r.from):'from '+fday(r.from)+' until '+fday(r.to);
+const noteTxt=()=>cfg.offNote?' '+esc(cfg.offNote)+(/[.!?]$/.test(cfg.offNote)?'':'.'):'';
+const nextBtn=(x,label)=>x?`<button class="btn small ghost jump" data-day="${x.ymd}">${esc(label||('Book after the holiday – '+fday(x)))}</button>`:'';
 function slotsFor(ymd,h){
   const slot=Math.max(10,Math.min(120,+cfg.slot||30)),chairs=Math.max(1,+cfg.chairs||1),earliest=Date.now()+30*60000,out=[];
   for(let m=mins(h[0]);m+slot<=mins(h[1]);m+=slot){const st=toUTC(ymd,hm(m)).getTime(),en=st+slot*60000;if(st<earliest)continue;
@@ -132,11 +139,14 @@ function render(){
   if(!selDay||!days.find(d=>d.ymd===selDay))selDay=open[0].ymd;
   const d=days.find(x=>x.ymd===selDay);
   const hols=days.filter(x=>x.kind==='holiday');
-  const holTxt=hols.length?`<div class="msg hol"><b>Holiday – clinic closed:</b> ${holRanges(hols)}${cfg.offNote?'<br>'+esc(cfg.offNote):''}</div>`:'';
+  const groups=holGroups();
+  const holTxt=groups.length?`<div class="msg hol"><b>Holiday – clinic closed</b>${noteTxt()}${groups.map(r=>`<div class="holrow"><span>Closed ${holSpan(r)}. ${r.next?'Open again on <b>'+fday(r.next)+'</b>.':'Please call the clinic for times after the holiday.'}</span>${nextBtn(r.next)}</div>`).join('')}</div>`:'';
   main.innerHTML=`${notice?`<div class="msg err">${esc(notice)}</div>`:''}${holTxt}<div class="card"><h2><span class="step">1</span>Choose a day</h2>
     <div class="days" role="group" aria-label="Days">${days.map(x=>`<button class="day ${x.kind}" data-day="${x.ymd}" aria-pressed="${x.ymd===selDay}"><span>${DN[x.dt.getUTCDay()]}</span><b>${x.dt.getUTCDate()}</b><span>${x.kind==='holiday'?'Holiday':x.kind==='closed'?'Closed':x.kind==='full'?'Full':MN[x.dt.getUTCMonth()]}</span></button>`).join('')}</div></div>
   <div class="card"><h2><span class="step">2</span>Choose a time</h2><p class="small muted" style="margin:-4px 0 0">${DNL[d.dt.getUTCDay()]}, ${d.dt.getUTCDate()} ${MN[d.dt.getUTCMonth()]} · Pakistan time</p>
-    ${d.kind!=='open'?`<div class="msg ${d.kind==='holiday'?'hol':'err'}">${d.kind==='holiday'?'The clinic is closed on this day (holiday).'+(cfg.offNote?' '+esc(cfg.offNote)+(/[.!?]$/.test(cfg.offNote)?'':'.'):''):d.kind==='closed'?'The clinic is closed on this day.':'This day is fully booked.'} Please choose another day.</div>`:''}
+    ${d.kind!=='open'?(()=>{const r=d.kind==='holiday'?groups.find(g=>d.ymd>=g.from.ymd&&d.ymd<=g.to.ymd):null;const nx=r?r.next:days.find(x=>x.kind==='open'&&x.ymd>d.ymd);
+      return `<div class="msg ${d.kind==='holiday'?'hol':'err'}"><span>${d.kind==='holiday'?'The clinic is closed for the holiday '+holSpan(r)+'.'+noteTxt():d.kind==='closed'?'The clinic is closed on this day.':'This day is fully booked.'} ${nx?'The next free day is <b>'+fday(nx)+'</b>.':'Please call the clinic.'}</span>
+        ${nextBtn(nx,nx?'Show free times on '+fday(nx):'')}</div>`})():''}
     <div class="slots" role="group" aria-label="Free times">${d.slots.map(s=>`<button class="slot" data-slot="${s.iso}" aria-pressed="${s.iso===selSlot}">${nice(s.m)}</button>`).join('')}</div></div>
   <form class="card" id="f" ${selSlot?'':'hidden'}><h2><span class="step">3</span>Your details</h2>
     <div class="chosen" id="chosen"></div>
@@ -153,7 +163,8 @@ function whenText(iso){const t=new Date(new Date(iso).getTime()+tzm()*60000);ret
 
 main.addEventListener('click',e=>{
   const b=e.target.closest('button');if(!b)return;
-  if(b.dataset.day){notice='';selDay=b.dataset.day;selSlot=null;render();return}
+  if(b.dataset.day){notice='';selDay=b.dataset.day;selSlot=null;render();
+    if(b.classList.contains('jump')){const el=document.querySelector('.day[aria-pressed="true"]');if(el)el.scrollIntoView({inline:'center',block:'nearest'});const sl=document.querySelector('.slots');if(sl)sl.closest('.card').scrollIntoView({behavior:'smooth',block:'start'})}return}
   if(b.dataset.slot){notice='';selSlot=b.dataset.slot;const keep={nm:$('#nm')&&$('#nm').value,ph:$('#ph')&&$('#ph').value,rs:$('#rs')&&$('#rs').value};render();
     if(keep.nm)$('#nm').value=keep.nm;if(keep.ph)$('#ph').value=keep.ph;if(keep.rs)$('#rs').value=keep.rs;$('#f').scrollIntoView({behavior:'smooth',block:'start'});return}
   if(b.id==='again'){location.reload()}
