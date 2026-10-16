@@ -7,7 +7,7 @@
 const CONFIG=window.CLINIC_CONFIG||{SUPABASE_URL:'',SUPABASE_ANON_KEY:''};
 const LOCAL=!!window.__LOCAL_DB;
 /* Seller details shown on the Activation screen. Fill these in (keep the quote marks). */
-const APP_VERSION='16 Oct 2026 · medical alerts on every page';
+const APP_VERSION='17 Oct 2026 · Smart Help, departments, pharmacy and lab';
 const SELLER={name:'',whatsapp:'03113124533',price:'Rs 25,000'};
 
 const $=s=>document.querySelector(s);
@@ -233,6 +233,186 @@ function resizeImage(file,max,type,quality){return new Promise((res,rej)=>{const
     const g=c.getContext('2d');if(type==='image/jpeg'){g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height)}g.drawImage(img,0,0,c.width,c.height);URL.revokeObjectURL(url);res(c.toDataURL(type,quality))};
   img.onerror=()=>{URL.revokeObjectURL(url);rej(new Error('That picture could not be opened. Use a JPG or PNG.'))};img.src=url})}
 const clinicMark=()=>branding.logo?`<img class="clinic-logo" src="${esc(branding.logo)}" alt="${esc(clinic?clinic.name:'')} logo">`:toothMark();
+
+/* ---- Facility type and hospital departments (saved with the clinic branding) ---- */
+const DENTAL_DEPTS=['General dentistry','Endodontics (root canal)','Oral & maxillofacial surgery','Orthodontics','Periodontics (gums)','Prosthodontics (crowns, dentures, implants)','Paediatric dentistry','Oral medicine & radiology','Cosmetic & aesthetics'];
+const FACILITIES=[['dental_clinic','Dental clinic'],['dental_hospital','Dental hospital (with departments)']];
+const deptList=()=>Array.isArray(branding.depts)?branding.depts:[];
+
+/* ---- Pharmacy and laboratory units (attached to a hospital; optional for a clinic) ---- */
+const unitsOf=()=>branding.units||{};
+const pharmOn=()=>!!unitsOf().pharmacy,labOn=()=>!!unitsOf().lab;
+const hospUnits=()=>({units:Object.assign({},unitsOf(),{pharmacy:true,lab:true,phSince:unitsOf().phSince||Date.now(),labSince:unitsOf().labSince||Date.now()})});
+const staffIds=u=>Array.isArray(branding[u==='pharmacy'?'pharmaStaff':'labStaff'])?branding[u==='pharmacy'?'pharmaStaff':'labStaff']:[];
+function rxWaiting(){const since=unitsOf().phSince||0,out=[];
+  db.patients.forEach(p=>(p.rx||[]).forEach(r=>{if((r.at||0)>=since&&!(r.pharm&&r.pharm.status==='given'))out.push({p,r})}));
+  return out.sort((a,b)=>(b.r.at||0)-(a.r.at||0))}
+function rxGiven(){const out=[];db.patients.forEach(p=>(p.rx||[]).forEach(r=>{if(r.pharm&&r.pharm.status==='given')out.push({p,r})}));return out.sort((a,b)=>(b.r.pharm.at||0)-(a.r.pharm.at||0)).slice(0,15)}
+function labWaiting(){const out=[];db.patients.forEach(p=>(p.labs||[]).forEach(l=>{if(l.status!=='done')out.push({p,l})}));return out.sort((a,b)=>(b.l.at||0)-(a.l.at||0))}
+function labDone(){const out=[];db.patients.forEach(p=>(p.labs||[]).forEach(l=>{if(l.status==='done')out.push({p,l})}));return out.sort((a,b)=>(b.l.doneAt||0)-(a.l.doneAt||0)).slice(0,15)}
+const pharmBadge=()=>pharmOn()?rxWaiting().length:0,labBadge=()=>labOn()?labWaiting().length:0;
+async function notifyUnit(unit,text,patientId){
+  const ids=staffIds(unit).filter(id=>id!==(user&&user.id));
+  for(const id of ids){try{await sendMessage(id,text,{kind:unit==='pharmacy'?'rx':'lab',patient_id:patientId})}catch(e){}}
+}
+const LAB_KINDS=['Blood test','Biopsy / histopathology','Culture & sensitivity','X-ray report / OPG reading','Crown / bridge / denture (dental lab)','Other'];
+function pName(p){return esc((p.first||'')+' '+(p.last||''))}
+function pharmView(){
+  const w=rxWaiting(),g=rxGiven();
+  return `${clockMini()}<header class="top"><div style="min-width:0"><h1>Pharmacy</h1><div class="sub">${w.length} prescription${w.length===1?'':'s'} waiting ${syncBadge()}</div></div></header>
+  ${homeNav('pharm')}
+  <section class="panel"><h3>Waiting to be given</h3>
+  ${w.length?w.map(({p,r})=>`<div class="hres"><div class="row"><b>${pName(p)}</b><span class="spacer"></span><span class="small muted">${fmtDate(r.date)} · Dr ${esc(String(r.by||'').replace(/^Dr\.?\s*/i,''))}</span></div>
+    ${r.diag?`<div class="small muted">${esc(r.diag)}</div>`:''}
+    <ul style="margin:0;padding-left:18px">${r.items.map(it=>`<li><b>${esc(it.name)}</b>${it.dose?' – '+esc(it.dose):''}${it.days?' · '+esc(it.days)+(/^\d+$/.test(String(it.days).trim())?' days':''):''}${it.note?' · '+esc(it.note):''}</li>`).join('')}</ul>
+    ${r.advice?`<div class="small">${esc(r.advice)}</div>`:''}
+    ${penAllergy(p)?'<div class="msg err" style="margin:0">Penicillin allergy – check before giving.</div>':''}
+    <div class="row"><button class="btn small primary" data-rxgiven="${p.id}|${r.id}">✓ Mark as given</button><button class="btn small" data-open="${p.id}">Open patient</button></div></div>`).join(''):'<div class="empty">No prescriptions waiting.</div>'}
+  </section>
+  ${g.length?`<section class="panel"><h3>Recently given</h3><div class="plist">${g.map(({p,r})=>`<div class="member"><span style="flex:1;min-width:0"><b>${pName(p)}</b><br><span class="small muted">${r.items.map(i=>esc(i.name)).join(', ')} · given ${fmtDate(dayOf(r.pharm.at))} by ${esc(r.pharm.by||'')}</span></span></div>`).join('')}</div></section>`:''}`;
+}
+function labView(){
+  const w=labWaiting(),g=labDone();
+  return `${clockMini()}<header class="top"><div style="min-width:0"><h1>Laboratory</h1><div class="sub">${w.length} request${w.length===1?'':'s'} waiting ${syncBadge()}</div></div></header>
+  ${homeNav('lab')}
+  <section class="panel"><h3>Waiting for the lab</h3>
+  ${w.length?w.map(({p,l})=>`<div class="hres"><div class="row"><b>${pName(p)}</b><span class="spacer"></span><span class="small muted">${fmtDate(l.date)} · ${esc(l.by||'')}</span></div>
+    <div><b>${esc(l.what)}</b>${l.note?' – '+esc(l.note):''}</div>
+    <label class="f"><span>Result / note for the dentist</span><input type="text" data-labres="${l.id}" placeholder="e.g. Hb 13.2 – normal, report attached in X-rays"></label>
+    <div class="row"><button class="btn small primary" data-labdone="${p.id}|${l.id}">✓ Mark as done</button><button class="btn small" data-open="${p.id}">Open patient</button></div></div>`).join(''):'<div class="empty">No lab requests waiting.</div>'}
+  </section>
+  ${g.length?`<section class="panel"><h3>Recently done</h3><div class="plist">${g.map(({p,l})=>`<div class="member"><span style="flex:1;min-width:0"><b>${pName(p)}</b> · ${esc(l.what)}<br><span class="small muted">${l.result?esc(l.result)+' · ':''}done ${fmtDate(dayOf(l.doneAt))} by ${esc(l.doneBy||'')}</span></span></div>`).join('')}</div></section>`:''}`;
+}
+function labTab(p){
+  p.labs=p.labs||[];const ro=isAcct()||readOnly();const list=p.labs.slice().sort((a,b)=>(b.at||0)-(a.at||0));
+  return `${ro?'':`<section class="panel"><h3>New lab request</h3>
+    <label class="f"><span>What is needed?</span><select id="lab-what">${LAB_KINDS.map(k=>`<option>${k}</option>`).join('')}</select></label>
+    <label class="f"><span>Details (optional)</span><input type="text" id="lab-note" placeholder="e.g. HbA1c before extraction · crown shade A2, tooth 36"></label>
+    <div class="row"><button class="btn primary" data-act="labAdd">Send to the lab</button>${(staffIds('lab').length)?'':'<span class="small muted">The lab sees it in its list.</span>'}</div></section>`}
+  <section class="panel"><h3>Lab requests for this patient</h3>
+  ${list.length?`<div class="plist">${list.map(l=>`<div class="member"><span style="flex:1;min-width:0"><b>${esc(l.what)}</b>${l.note?' – '+esc(l.note):''}<br><span class="small muted">${fmtDate(l.date)} · ${esc(l.by||'')}${l.status==='done'?' · result: '+esc(l.result||'done'):''}</span></span><span class="pill ${l.status==='done'?'ok':'warn'}">${l.status==='done'?'Done':'Waiting'}</span></div>`).join('')}</div>`:'<div class="empty">No lab requests yet.</div>'}</section>`;
+}
+function unitsPanel(){
+  const u=unitsOf();const mem=team||[];
+  const staffBox=(unit,label)=>`<div class="small" style="margin-top:4px"><b>${label} staff</b> – these people get a pop-up and sound when something arrives:</div><div class="chips">${mem.map(t=>`<label class="chip"><input type="checkbox" data-unitstaff="${unit}" value="${t.user_id}" ${staffIds(unit).includes(t.user_id)?'checked':''} style="width:18px;height:18px;margin:0"> ${esc(t.name)}</label>`).join('')||'<span class="small muted">Add team members first.</span>'}</div>`;
+  return `<div style="border-top:1px solid var(--line);padding-top:10px;margin-top:4px;display:flex;flex-direction:column;gap:8px"><b>Pharmacy and laboratory</b>
+    <label class="row small" style="gap:8px"><input type="checkbox" id="unit-pharmacy" ${u.pharmacy?'checked':''} style="width:20px;height:20px"> Pharmacy – sees every new prescription and marks it as given</label>
+    <label class="row small" style="gap:8px"><input type="checkbox" id="unit-lab" ${u.lab?'checked':''} style="width:20px;height:20px"> Laboratory – receives lab requests from the dentists</label>
+    ${u.pharmacy?staffBox('pharmacy','Pharmacy'):''}${u.lab?staffBox('lab','Laboratory'):''}
+    ${(u.pharmacy||u.lab)?'<p class="small muted" style="margin:0">Give pharmacy and lab staff a login with the role <b>Dentist</b> (Team below) so they can mark items as given or done.</p>':''}</div>`;
+}
+function deptPanel(){
+  if(!isAdmin()||brandingErr==='needsql')return '';
+  const fac=branding.facility||'dental_clinic',ds=deptList();
+  return `<section class="panel" id="deptPanel"><h3>Facility type &amp; departments</h3>
+    <label class="f"><span>What do you run?</span><select id="facility-sel">${FACILITIES.map(([k,l])=>`<option value="${k}" ${fac===k?'selected':''}>${l}</option>`).join('')}<option disabled>Medical clinic – coming soon</option><option disabled>Medical hospital – coming soon</option></select></label>
+    <p class="small muted" style="margin:0">A hospital can sort its patients into departments. Each patient gets a department, and the patient list can be filtered by department. A clinic can leave this empty.</p>
+    ${ds.length?`<div class="chips">${ds.map((n,i)=>`<span class="chip">${esc(n)}<button type="button" data-deptdel="${i}" aria-label="Remove ${esc(n)}">×</button></span>`).join('')}</div>`:'<p class="small muted" style="margin:0">No departments yet.</p>'}
+    <div class="row"><input type="text" id="dept-new" placeholder="New department, e.g. Implant centre" style="flex:1;min-width:0"><button class="btn small primary" data-act="deptAdd">Add</button></div>
+    <div class="row"><button class="btn small" data-act="deptReady">Use the ready-made dental departments</button>${ds.length?'<button class="btn small" data-act="deptClear">Remove all</button>':''}</div>
+    ${unitsPanel()}
+  </section>`;
+}
+async function deptSave(patch,msg){try{await saveBranding(patch);render();if(msg)toast(msg)}catch(e){toast(friendly(e))}}
+
+/* ---- Smart Help: type what you look for, see where it is, tap to go there ---- */
+const HELP=[
+ {t:'Add or clear holidays',k:'holiday holidays vacation closed off day leave eid clear',p:'Clinic & account › Online booking',s:'settings',h:'Online booking',a:1},
+ {t:'Booking QR code, link and poster',k:'qr code booking link poster print online book patients website',p:'Clinic & account › Online booking',s:'settings',h:'Online booking',a:1},
+ {t:'Turn online booking on or off, slot length, chairs, working days and hours',k:'online booking slot chairs working days hours time open close availability',p:'Clinic & account › Online booking',s:'settings',h:'Online booking',a:1},
+ {t:'Change the background photo or colour',k:'background photo picture wallpaper colour color theme look',p:'Clinic & account › Clinic logo & background',s:'settings',h:'Clinic logo',a:1},
+ {t:'Upload the clinic logo',k:'logo picture brand image print letterhead',p:'Clinic & account › Clinic logo & background',s:'settings',h:'Clinic logo',a:1},
+ {t:'Facility type and hospital departments',k:'department departments hospital facility type orthodontics surgery endodontics ward unit',p:'Clinic & account › Facility type & departments',s:'settings',h:'Facility type',a:1},
+ {t:'Clinic name, address, phone, registration no.',k:'clinic name address phone number registration ntn pmdc details reminder message template',p:'Clinic & account › Clinic details',s:'settings',h:'Clinic details'},
+ {t:'Activate the app (licence, trial)',k:'activate activation key licence license trial expired subscription pay',p:'Clinic & account › Activation',s:'settings',h:'Activation',a:1},
+ {t:'Add a dentist, accountant or staff login',k:'add dentist doctor team member accountant staff user login invite code join',p:'Clinic & account › Team',s:'settings',h:'Team'},
+ {t:'Attendance of staff',k:'attendance staff login time hours present',p:'Clinic & account › Attendance',s:'settings',h:'Attendance',a:1},
+ {t:'Change my password',k:'password change reset forgot security',p:'Clinic & account › Change password',s:'settings',h:'Change password'},
+ {t:'Backup and restore',k:'backup restore save copy lost phone export data safe',p:'Clinic & account › Backup',s:'settings',h:'Backup'},
+ {t:'Sounds and notifications',k:'sound tone ring alert notification mute volume',p:'Clinic & account › Sounds',s:'settings',h:'Sounds'},
+ {t:'See today’s appointments and waiting online bookings',k:'appointment appointments calendar today booking waiting accept decline schedule',p:'Appointments',s:'appts'},
+ {t:'Earnings, expenses and salaries',k:'earnings income money expenses salary salaries profit payments report accountant',p:'Earnings (PIN protected)',s:'earn',a:1},
+ {t:'Messages to the team',k:'message messages chat team send staff',p:'Messages',s:'msgs'},
+ {t:'Add a new patient',k:'new patient add register create',p:'Patients › + New patient',s:'list',sel:'[data-act="newPatient"]'},
+ {t:'Add an old patient from paper records',k:'old patient paper import records excel file card',p:'Patients › + Old patient',s:'list',sel:'[data-act="impOpen"]'},
+ {t:'Find a patient',k:'find search patient name phone cnic file number',p:'Patients › Search box',s:'list',sel:'#search'},
+ {t:'Patient allergies, pregnancy and medicines (medical alert)',k:'allergy allergies pregnant pregnancy medicine medicines tablets blood thinner alert medical history',p:'Open a patient › Medical history',tab:'mh'},
+ {t:'Tooth chart',k:'chart tooth teeth fdi surface caries filling missing',p:'Open a patient › Chart',tab:'chart'},
+ {t:'Treatment plan and root canal (RCT) steps',k:'treatment plan phase rct root canal pulpectomy pulpotomy endodontic procedure items',p:'Open a patient › Treatment plan',tab:'plan'},
+ {t:'Payments, invoice and receipt',k:'payment pay invoice receipt bill discount cash easypaisa jazzcash balance',p:'Open a patient › Payments',tab:'pay'},
+ {t:'Clinical notes and canal lengths',k:'clinical notes note template canal length rct visit write',p:'Open a patient › Clinical notes',tab:'notes'},
+ {t:'X-rays and photos',k:'xray x-ray opg photo scan camera upload picture radiograph',p:'Open a patient › X-rays',tab:'xrays'},
+ {t:'Write and print a prescription',k:'prescription antibiotic painkiller medicine print rx drug dose',p:'Open a patient › Prescription',tab:'rx'},
+ {t:'Book an appointment for a patient',k:'book appointment patient reminder whatsapp sms visit next',p:'Open a patient › Appointments',tab:'appts'},
+ {t:'Pharmacy – prescriptions waiting',k:'pharmacy pharmacist prescription medicine given dispense notification',p:'Pharmacy',s:'pharm'},
+ {t:'Laboratory – requests and results',k:'lab laboratory blood test biopsy result request report',p:'Laboratory',s:'lab'},
+ {t:'Turn on Pharmacy or Lab and choose who gets notified',k:'pharmacy lab laboratory staff notify notification unit attach hospital',p:'Clinic & account › Facility type & departments',s:'settings',h:'Facility type',a:1},
+ {t:'Aesthetics patients',k:'aesthetic aesthetics botox laser prp cosmetic',p:'Aesthetics',s:'aes'}
+];
+const TAB_LABEL={mh:'Medical history',chart:'Chart',plan:'Treatment plan',pay:'Payments',notes:'Clinical notes',xrays:'X-rays',rx:'Prescription',appts:'Appointments'};
+function helpFind(q){
+  const w=q.toLowerCase().split(/[^a-z0-9’']+/).filter(x=>x.length>1);if(!w.length)return [];
+  return HELP.filter(e=>!e.a||isAdmin()).map(e=>{const hay=(e.t+' '+e.k+' '+e.p).toLowerCase();let sc=0;
+    w.forEach(x=>{if(hay.includes(x))sc+=e.t.toLowerCase().includes(x)?3:e.k.includes(x)?2:1;else if(x.length>3&&hay.includes(x.slice(0,-1)))sc+=1});return {e,sc}})
+    .filter(r=>r.sc>0).sort((a,b)=>b.sc-a.sc).slice(0,6).map(r=>r.e);
+}
+function helpResults(q){
+  const r=helpFind(q);
+  if(!q.trim())return `<p class="small muted" style="margin:6px 0">Type what you are looking for. For example:</p><div>${['holiday','prescription','backup','add dentist','background','allergy','earnings','x-ray'].map(x=>`<button type="button" class="chip" data-helpq="${x}">${x}</button>`).join('')}</div>`;
+  if(!r.length)return `<p class="small muted">Nothing found for “${esc(q)}”. Try one word, like <b>holiday</b>, <b>print</b> or <b>password</b>.</p>`;
+  return r.map(e=>`<div class="hres"><div class="small muted">${esc(e.p)}</div><b>${esc(e.t)}</b><div><button type="button" class="btn small primary" data-helpgo="${HELP.indexOf(e)}">Take me there →</button></div></div>`).join('');
+}
+function helpOpen(){
+  if(document.getElementById('helpSheet'))return;
+  const d=document.createElement('div');d.id='helpSheet';d.className='helpsheet';d.setAttribute('role','dialog');d.setAttribute('aria-label','Smart Help');
+  d.innerHTML=`<div class="hbox"><div class="row"><b style="font-size:1.1rem">🧭 Smart Help</b><span class="spacer"></span><button type="button" class="btn small" data-helpclose="1">Close</button></div>
+   <input type="search" id="helpQ" placeholder="What are you looking for? e.g. holiday" autocomplete="off" autocapitalize="off">
+   <div id="helpRes">${helpResults('')}</div></div>`;
+  document.body.appendChild(d);setTimeout(()=>{const i=document.getElementById('helpQ');if(i)i.focus()},50);
+}
+function helpClose(){const d=document.getElementById('helpSheet');if(d)d.remove()}
+function helpClearTip(){document.querySelectorAll('.hl-target').forEach(x=>x.classList.remove('hl-target'));document.querySelectorAll('.hl-tip').forEach(x=>x.remove())}
+function helpShowTip(el,text){
+  helpClearTip();if(!el){toast(text);return}
+  el.classList.add('hl-target');const tip=document.createElement('div');tip.className='hl-tip';tip.innerHTML='👆 '+esc(text)+' <button type="button" data-helpdone="1">OK</button>';
+  el.parentNode.insertBefore(tip,el);el.scrollIntoView({block:'center',behavior:'smooth'});setTimeout(helpClearTip,15000);
+}
+function helpHeading(txt){
+  const hs=[...document.querySelectorAll('.main h1,.main h2,.main h3,.main summary')];
+  const h=hs.find(x=>x.textContent.toLowerCase().includes(txt.toLowerCase()));return h?(h.closest('section,form,details')||h):null;
+}
+function helpGo(e){
+  helpClose();stopXrWatch();stopCamera();
+  const after=(fn)=>setTimeout(fn,120);
+  if(e.tab){
+    if(view.screen==='patient'&&view.pid){view.tab=e.tab;view.tooth=null;view.addItem=null;view.confirm=null;
+      if(e.tab==='appts'){apptsPatient=[];apptsLoading=true;render();refreshAppts()}else if(e.tab==='xrays'){xrays=[];xrView=null;render()}else render();
+      after(()=>helpShowTip(document.querySelector('.tabs [data-tab="'+e.tab+'"].tab')||document.querySelector('.apptbar'),'Here: '+TAB_LABEL[e.tab]));
+    }else{view=Object.assign(view,{screen:'list',pid:null,confirm:null,msg:null});render();after(()=>helpShowTip(document.getElementById('search'),'First open a patient, then tap “'+TAB_LABEL[e.tab]+'” in the row of tabs.'))}
+    return;
+  }
+  if(e.s==='settings'){view.newRecovery=null;if(isAdmin()||isAcct()){attRows=null;loadAttendance(attDay||today()).then(()=>{if(view.screen==='settings')softRender()})}
+    view.screen='settings';view.pid=null;view.confirm=null;view.msg=null;render();loadTeam().then(()=>{if(view.screen==='settings')softRender()});
+    after(()=>helpShowTip(helpHeading(e.h),'Here: '+e.t));return}
+  if(e.s==='appts'){view=Object.assign(view,{screen:'appts',pid:null,confirm:null,msg:null,day:view.day||today()});render();refreshAppts();after(()=>helpShowTip(document.querySelector('.main h1')||null,'You are in Appointments.'));return}
+  if(e.s==='earn'){view=Object.assign(view,{screen:'earn',pid:null,confirm:null,msg:null});earn.err='';earn.mode='';render();if(earnOpen())loadEarn();after(()=>helpShowTip(document.querySelector('.main h1')||null,'Earnings is PIN protected. Enter your PIN to open it.'));return}
+  view=Object.assign(view,{screen:e.s,pid:null,confirm:null,msg:null});render();
+  after(()=>{const el=e.sel?document.querySelector('.main '+e.sel):null;helpShowTip(el||document.querySelector('.main h1'),'Here: '+e.t)});
+}
+document.addEventListener('click',e=>{
+  const b=e.target.closest('button');
+  if(e.target.closest('#helpFab')){helpOpen();return}
+  const sheet=document.getElementById('helpSheet');
+  if(sheet&&e.target===sheet){helpClose();return}
+  if(!b)return;const d=b.dataset;
+  if(d.helpclose){helpClose();return}
+  if(d.helpdone){helpClearTip();return}
+  if(d.helpq!==undefined){const i=document.getElementById('helpQ');if(i){i.value=d.helpq;document.getElementById('helpRes').innerHTML=helpResults(d.helpq);i.focus()}return}
+  if(d.helpgo!==undefined){const en=HELP[+d.helpgo];if(en)helpGo(en);return}
+});
+document.addEventListener('input',e=>{if(e.target&&e.target.id==='helpQ'){document.getElementById('helpRes').innerHTML=helpResults(e.target.value)}});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')helpClose()});
+
 function brandingPanel(){
   if(!isAdmin())return '';
   if(brandingErr==='needsql')return `<section class="panel"><h3>Clinic logo &amp; background</h3><div class="msg warn">This needs one small database update. Open <b>Supabase → SQL Editor</b>, paste <b>supabase-update-finance.sql</b> and press <b>Run</b>, then reload.</div></section>`;
@@ -370,9 +550,9 @@ function subscribe(){
     if(pl.eventType==='INSERT'&&b){Sound.play('arrival');const t=$('#toast');t.textContent='New online booking: '+b.name+' – '+fmtDate(dayOf(b.starts_at))+' at '+hhmm(b.starts_at);t.className='toast success';t.hidden=false;clearTimeout(toast._t);toast._t=setTimeout(()=>t.hidden=true,7000)}
   }).on('postgres_changes',{event:'INSERT',schema:'public',table:'messages',filter:'clinic_id=eq.'+clinic.id},pl=>{
     const m=pl.new;if(!m||msgs.some(x=>x.id===m.id))return;msgs.push(m);
-    if(forMe(m)&&m.sender!==user.id){Sound.play(m.kind==='arrived'?'arrival':'message');
+    if(forMe(m)&&m.sender!==user.id){Sound.play(m.kind==='arrived'||m.kind==='rx'||m.kind==='lab'?'arrival':'message');
       if(view.screen==='msgs')markRead().then(()=>softRender());
-      else{const t=$('#toast');t.textContent=(m.kind==='arrived'?'':'New message from '+m.sender_name+': ')+m.body;t.className='toast success';t.hidden=false;clearTimeout(toast._t);toast._t=setTimeout(()=>t.hidden=true,5000);softRender()}}
+      else{const t=$('#toast');t.textContent=(m.kind==='arrived'?'':m.kind==='rx'?'💊 ':m.kind==='lab'?'🧪 ':'New message from '+m.sender_name+': ')+m.body;t.className='toast success';t.hidden=false;clearTimeout(toast._t);toast._t=setTimeout(()=>t.hidden=true,5000);softRender()}}
   }).subscribe();
 }
 document.addEventListener('visibilitychange',async()=>{
@@ -424,8 +604,9 @@ async function openClinic(m){
   catch(e){view.screen='error';view.msg={t:'err',m:friendly(e)};render();return}
   subscribe();
   setTimeout(prepareDaily,1500);startAttendance();loadMessages().then(()=>{const n=unreadCount();if(n){render();setTimeout(()=>toast('You have '+n+' new message'+(n>1?'s':'')+' – open Messages'),400)}});
-  view={screen:showWelcome?'welcome':'list',pid:null,tab:'details',tooth:null,q:'',confirm:null,msg:null,authTab:'login'};render();
-  if(showWelcome){showWelcome=false;Sound.play('success');setTimeout(()=>{if(view.screen==='welcome'){view.screen='list';render()}},3500)}
+  view={screen:showWelcome?'welcome':'appts',pid:null,tab:'details',tooth:null,q:'',confirm:null,msg:null,authTab:'login',day:today()};render();
+  if(!showWelcome)refreshAppts();
+  if(showWelcome){showWelcome=false;Sound.play('success');setTimeout(()=>{if(view.screen==='welcome'){view.screen='appts';view.day=today();render();refreshAppts()}},3500)}
 }
 async function refreshClinic(){const {data}=await sb.from('clinics').select('id,name,address,phone,invite_code,reminder_template,created_at,licensed_at,license_name,reg_body,reg_no,ntn').eq('id',clinic.id).single();if(data){clinic=normClinic(data);const m=memberships.find(x=>x.clinic_id===clinic.id);if(m)m.clinics=clinic;}}
 
@@ -865,7 +1046,7 @@ async function refreshAppts(){
   }catch(e){toast(friendly(e))}
   apptsLoading=false;softRender();
 }
-function homeNav(active){return `<nav class="tabs homenav desk-hide" role="tablist"><button class="tab" role="tab" aria-selected="${active==='list'}" data-home="list">Patients</button><button class="tab" role="tab" aria-selected="${active==='aes'}" data-home="aes">Aesthetics</button><button class="tab" role="tab" aria-selected="${active==='appts'}" data-home="appts">Appointments</button><button class="tab" role="tab" aria-selected="${active==='msgs'}" data-home="msgs">Messages${unreadCount()?' ('+unreadCount()+')':''}</button>${isAdmin()?`<button class="tab" role="tab" aria-selected="${active==='earn'}" data-home="earn">Earnings</button>`:''}</nav>`}
+function homeNav(active){return `<nav class="tabs homenav desk-hide" role="tablist"><button class="tab" role="tab" aria-selected="${active==='list'}" data-home="list">Patients</button><button class="tab" role="tab" aria-selected="${active==='aes'}" data-home="aes">Aesthetics</button><button class="tab" role="tab" aria-selected="${active==='appts'}" data-home="appts">Appointments</button>${pharmOn()?`<button class="tab" role="tab" aria-selected="${active==='pharm'}" data-home="pharm">Pharmacy${pharmBadge()?' ('+pharmBadge()+')':''}</button>`:''}${labOn()?`<button class="tab" role="tab" aria-selected="${active==='lab'}" data-home="lab">Lab${labBadge()?' ('+labBadge()+')':''}</button>`:''}<button class="tab" role="tab" aria-selected="${active==='msgs'}" data-home="msgs">Messages${unreadCount()?' ('+unreadCount()+')':''}</button>${isAdmin()?`<button class="tab" role="tab" aria-selected="${active==='earn'}" data-home="earn">Earnings</button>`:''}</nav>`}
 /* Team messages on this device: "patient arrived" notes and messages between staff. */
 let msgs=[];
 async function loadMessages(){if(!clinic)return;const {data}=await sb.from('messages').select('*').eq('clinic_id',clinic.id).order('created_at');msgs=(data||[]).slice(-300)}
@@ -1315,8 +1496,8 @@ function mhStatus(p){
 /* ---------- screens ---------- */
 function render(){
   const app=$('#app');const s=view.screen;
-  const v={config:configView,offline:offlineView,loading:loadingView,error:errorView,auth:authView,newpw:newpwView,onboard:onboardView,recovery:recoveryView,welcome:welcomeView,list:listView,appts:apptsView,msgs:msgsView,settings:settingsView,patient:patientView,earn:earningsView,owner:ownerView,aes:aesView}[s]||loadingView;
-  const inShell=['list','appts','msgs','settings','patient','earn','aes'].includes(s)&&clinic&&me;
+  const v={config:configView,offline:offlineView,loading:loadingView,error:errorView,auth:authView,newpw:newpwView,onboard:onboardView,recovery:recoveryView,welcome:welcomeView,list:listView,pharm:pharmView,lab:labView,appts:apptsView,msgs:msgsView,settings:settingsView,patient:patientView,earn:earningsView,owner:ownerView,aes:aesView}[s]||loadingView;
+  const inShell=['list','appts','msgs','settings','patient','earn','aes','pharm','lab'].includes(s)&&clinic&&me;
   app.innerHTML=inShell?shell(ownerBar()+v()):`<div class="wrap">${v()}${['auth','onboard','newpw','recovery','config'].includes(s)?CREDIT:''}${s==='auth'?'<p class="ownerlink"><button class="linkbtn" data-act="ownerOpen">Owner access</button></p>':''}</div>`;
   if(view.screen==='msgs'){const cl=document.getElementById('chatList');if(cl)cl.scrollTop=cl.scrollHeight}
   if(document.querySelector('.credit-qr'))fillQR();
@@ -1734,7 +1915,7 @@ async function ownerAutoLogin(){
   const np=sample();np.notes[0].by=me.name;db.patients.push(np);markDirty(np.id);await flush();render();
 }
 function shell(content){
-  const s=view.screen,active=s==='appts'?'appts':s==='msgs'?'msgs':s==='settings'?'settings':s==='earn'?'earn':s==='aes'||(s==='patient'&&isAes(P()))?'aes':'list';const un=unreadCount();
+  const s=view.screen,active=s==='appts'?'appts':s==='msgs'?'msgs':s==='settings'?'settings':s==='earn'?'earn':s==='pharm'?'pharm':s==='lab'?'lab':s==='aes'||(s==='patient'&&isAes(P()))?'aes':'list';const un=unreadCount();
   const lic=clinic.lic;const ini=(me.name||'?').replace(/^Dr\.?\s*/i,'').trim().slice(0,1).toUpperCase();
   return `<div class="shell">
   <aside class="sidebar" aria-label="Main menu">
@@ -1745,6 +1926,7 @@ function shell(content){
       <button class="${active==='list'?'on':''}" data-home="list">${icon('people')}<span>Patients</span><em>${db.patients.filter(p=>!isAes(p)).length}</em></button>
       <button class="${active==='aes'?'on':''}" data-home="aes">${icon('sparkle')}<span>Aesthetics</span><em>${db.patients.filter(isAes).length}</em></button>
       <button class="${active==='appts'?'on':''}" data-home="appts">${icon('calendar')}<span>Appointments</span>${booking.waiting.length?`<em class="badge" title="Online bookings waiting">${booking.waiting.length}</em>`:''}</button>
+      ${pharmOn()?`<button class="${active==='pharm'?'on':''}" data-home="pharm">${icon('pill')}<span>Pharmacy</span>${pharmBadge()?`<em class="badge">${pharmBadge()}</em>`:''}</button>`:''}${labOn()?`<button class="${active==='lab'?'on':''}" data-home="lab">${icon('flask')}<span>Laboratory</span>${labBadge()?`<em class="badge">${labBadge()}</em>`:''}</button>`:''}
       <button class="${active==='msgs'?'on':''}" data-home="msgs">${icon('chat')}<span>Messages</span>${un?`<em class="badge">${un}</em>`:''}</button>
       ${isAdmin()?`<button class="${active==='earn'?'on':''}" data-home="earn">${icon('money')}<span>Earnings</span>${earnOpen()?'':`<em class="lockmark" title="PIN protected">${icon('lock')}</em>`}</button>`:''}
       <button class="${active==='settings'?'on':''}" data-act="settings">${icon('gear')}<span>Clinic &amp; account</span></button>
@@ -1758,6 +1940,7 @@ function shell(content){
     </div>
   </aside>
   <main class="main"><div class="wrap">${content}</div></main>
+<button type="button" id="helpFab" class="helpfab" aria-label="Smart Help – find any setting">🧭 <span>Help</span></button>
 </div>`;
 }
 /* Attendance: each login starts a record; logout (or the last activity) ends it. */
@@ -1812,6 +1995,8 @@ function icon(n){const p={
   camera:'<path d="M4 8h3l2-2.5h6L17 8h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
   logout:'<path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4"/><path d="M10 16l-4-4 4-4M6 12h10"/>',
   sparkle:'<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M18.5 15.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/>',
+  pill:'<rect x="3.5" y="8.5" width="17" height="7" rx="3.5" transform="rotate(-35 12 12)"/><path d="M9.4 7.9l5.2 8.2"/>',
+  flask:'<path d="M9 3h6M10 3v6l-5 9a1.5 1.5 0 0 0 1.3 2.2h11.4A1.5 1.5 0 0 0 19 18l-5-9V3"/><path d="M7.5 15h9"/>',
   lock:'<rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/><circle cx="12" cy="15.5" r="1.3"/>',
   money:'<rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.8"/><path d="M6.5 9.5v5M17.5 9.5v5"/>'}[n]||'';
   return `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`}
@@ -1862,7 +2047,8 @@ function onboardView(){
   return `<div class="auth">${brand()}${msgHtml()}
   <form class="panel" id="createForm"><h2>Create your clinic</h2>
     <p class="small muted" style="margin:0">${LOCAL?'You become the clinic admin and can add dentists with their own logins.':'You become the clinic admin and get an invite code for your dentists.'}</p>
-    <label class="f"><span>Clinic name</span><input type="text" id="cc-name" placeholder="e.g. Smile Dental Clinic" required></label>
+    <label class="f"><span>What are you registering?</span><select id="cc-fac"><option value="dental_clinic" ${facilityPref==='dental_clinic'?'selected':''}>Dental clinic</option><option value="dental_hospital" ${facilityPref==='dental_hospital'?'selected':''}>Dental hospital (departments)</option><option disabled>Medical clinic – coming soon</option><option disabled>Medical hospital – coming soon</option></select></label>
+    <label class="f"><span>Clinic or hospital name</span><input type="text" id="cc-name" placeholder="e.g. Smile Dental Clinic" required></label>
     <label class="f"><span>Address</span><input type="text" id="cc-address" placeholder="Street, city"></label>
     <label class="f"><span>Phone</span><input type="tel" id="cc-phone"></label>
     ${regFields('cc')}
@@ -1883,7 +2069,7 @@ function onboardView(){
 function aesView(){return listView('aes')}
 function listView(sec){
   const AES=sec==='aes';const q=view.q.toLowerCase();
-  const pool=db.patients.filter(p=>AES?isAes(p):!isAes(p));
+  const pool=db.patients.filter(p=>AES?isAes(p):!isAes(p)).filter(p=>AES||!view.dept||p.dept===view.dept);
   const list=pool.filter(p=>(p.first+' '+p.last+' '+(p.phone||'')+' '+(p.cnic||'')+' '+(p.oldFile||'')).toLowerCase().includes(q))
    .sort((a,b)=>(a.last||'').localeCompare(b.last||''));
   return `
@@ -1894,6 +2080,7 @@ function listView(sec){
   </header>
   ${homeNav(AES?'aes':'list')}
   ${deviceBanner()}
+  ${!AES&&deptList().length?`<div class="chips deptf"><button type="button" class="chip ${!view.dept?'on':''}" data-deptf="">All departments</button>${deptList().map(n=>`<button type="button" class="chip ${view.dept===n?'on':''}" data-deptf="${esc(n)}">${esc(n)}</button>`).join('')}</div>`:''}
   <div class="row">
     <input type="search" id="search" placeholder="${AES?'Search aesthetic patients – name, phone, CNIC':'Search name, phone, CNIC or file no.'}" value="${esc(view.q)}" style="flex:1;min-width:0">
     ${isAcct()?'':`<button class="btn" data-act="impOpen" data-sec="${AES?'aes':''}" ${readOnly()?'disabled':''}>+ Old patient</button><button class="btn primary" data-act="newPatient" data-sec="${AES?'aes':''}" ${readOnly()?'disabled':''}>+ New ${AES?'aesthetic ':''}patient</button>`}
@@ -1907,7 +2094,7 @@ function listView(sec){
         <span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
           <span class="nm">${esc(p.last)}, ${esc(p.first)} ${p.example?'<span class="pill warn">Example</span>':''}</span>
           <span class="meta">${p.oldFile?'File '+esc(p.oldFile)+' · ':''}${p.dob?fmtDate(p.dob)+' · '+age(p.dob)+' yrs':'No date of birth'}${p.phone?' · '+esc(p.phone):''}${open?' · '+open+' item'+(open>1?'s':'')+' to do':''}</span>
-          <span class="alerts">${al.length?`<span class="pill alert">⚠ ${al.length} medical alert${al.length>1?'s':''}</span>`:''}<span class="pill ${ms.cls}">${ms.t}</span></span>
+          <span class="alerts">${p.dept&&!AES?`<span class="pill info">${esc(p.dept)}</span>`:''}${al.length?`<span class="pill alert">⚠ ${al.length} medical alert${al.length>1?'s':''}</span>`:''}<span class="pill ${ms.cls}">${ms.t}</span></span>
         </span>
       </button>`}).join('')}</div>`:(q?`<div class="empty">No patient matches that search.</div>`:`<div class="empty">No patients yet. Tap “New patient” to add the first one.</div><div class="row"><button class="btn small" data-act="example">Add an example patient to try the app</button></div>`)}
   </section>`;
@@ -1934,6 +2121,7 @@ function settingsView(){
   <h1>Clinic & account</h1>
   <p class="small muted" style="margin:-6px 0 12px">App version: <b>${APP_VERSION}</b></p>
   ${brandingPanel()}
+  ${deptPanel()}
   ${bookingSettingsPanel()}
   ${soundsPanel()}
   ${msgHtml()}
@@ -2026,6 +2214,9 @@ function recoveryView(){
   </section></div>`;
 }
 let showWelcome=false;
+const URLQ=new URLSearchParams(location.search);
+let facilityPref=['dental_clinic','dental_hospital'].includes(URLQ.get('type'))?URLQ.get('type'):'dental_clinic';
+if(URLQ.get('signup'))view.authTab='signup';
 function greeting(){const h=new Date().getHours();return h<12?'Good morning':h<17?'Good afternoon':'Good evening'}
 function welcomeView(){
   return `<div class="welcome">
@@ -2130,9 +2321,9 @@ function patientView(){
   const p=P();if(!p){view.screen='list';return listView();}
   migrate(p);
   const al=alertsOf(p),ms=mhStatus(p);
-  const tabs=isAes(p)?[['details','Details'],['mh','Medical history'],['plan','Treatments'],['pay','Payments'],['notes','Clinical notes'],['xrays','Photos'],['rx','Prescription']]:[['details','Details'],['mh','Medical history'],['chart','Chart'],['plan','Treatment plan'],['pay','Payments'],['notes','Clinical notes'],['xrays','X-rays'],['rx','Prescription']];
+  const tabs=isAes(p)?[['details','Details'],['mh','Medical history'],['plan','Treatments'],['pay','Payments'],['notes','Clinical notes'],['xrays','Photos'],['rx','Prescription']]:[['details','Details'],['mh','Medical history'],['chart','Chart'],['plan','Treatment plan'],['pay','Payments'],['notes','Clinical notes'],['xrays','X-rays'],['rx','Prescription']].concat(labOn()?[['lab','Lab']]:[]);
   if(isAes(p)&&view.tab==='chart')view.tab='details';
-  let body={details:detailsTab,mh:mhTab,chart:chartTab,plan:planTab,pay:payTab,notes:notesTab,xrays:xrayTab,appts:apptTab,rx:rxTab}[view.tab](p);
+  let body={details:detailsTab,mh:mhTab,chart:chartTab,plan:planTab,pay:payTab,notes:notesTab,xrays:xrayTab,appts:apptTab,rx:rxTab,lab:labTab}[view.tab](p);
   if(isAcct()&&['details','mh','chart','plan'].includes(view.tab))body=`<fieldset class="ro" disabled>${body}</fieldset>`;
   return `
   <header class="top"><button class="btn small" data-act="back">← Patients</button>${syncBadge()}</header>
@@ -2157,6 +2348,7 @@ function detailsTab(p){
   return `${isNew&&!p.paperEntry?`<div class="msg ok">Adding a patient from your old records? Fill in <b>Old records</b> below, then add past treatment in the <b>Treatment plan</b> with "Already done on", and photograph the old file in <b>X-rays</b> as "Old record (scan)".</div>`:''}
   <section class="panel">
     <h3>Personal details</h3>
+    ${deptList().length?`<label class="f"><span>Department</span><select data-f="dept" id="f-dept"><option value="">—</option>${deptList().concat(p.dept&&!deptList().includes(p.dept)?[p.dept]:[]).map(o=>`<option ${p.dept===o?'selected':''}>${esc(o)}</option>`).join('')}</select></label>`:''}
     <div class="grid2">${fld('first','First name',p.first)}${fld('last','Surname / family name',p.last)}${fld('dob','Date of birth',p.dob,'date')}
     <label class="f"><span>Sex</span><select data-f="sex" id="f-sex">${['','F','M','O'].map(o=>`<option ${p.sex===o?'selected':''} value="${o}">${{'':'—',F:'Female',M:'Male',O:'Other'}[o]}</option>`).join('')}</select></label>
     ${fld('phone','Mobile',p.phone,'tel')}${fld('cnic','CNIC',p.cnic,'text','inputmode="numeric" placeholder="00000-0000000-0"')}</div>
@@ -2680,7 +2872,9 @@ function rxSave(p){rxRead();const d=view.rxDraft;d.items=d.items.map(x=>({name:S
   if(penAllergy(p)&&d.items.some(x=>/amoxi|co-?amox|augment|ampic|penic/i.test(x.name))&&!confirm('This patient is allergic to penicillin, and this prescription contains a penicillin. Save anyway?'))return null;
   p.rx=p.rx||[];let r;if(d.id){r=p.rx.find(x=>x.id===d.id);Object.assign(r,{date:d.date,diag:d.diag,items:d.items,advice:d.advice,editedBy:me.name})}
   else{r={id:uid(),at:Date.now(),date:d.date||today(),diag:d.diag,items:d.items,advice:d.advice,by:me.name,byPmdc:me.pmdc||''};p.rx.push(r)}
-  save();view.rxDraft=rxNew();return r}
+  save();view.rxDraft=rxNew();
+  if(!d.id&&pharmOn())notifyUnit('pharmacy','New prescription for '+p.first+' '+p.last+': '+r.items.map(x=>x.name).join(', '),p.id);
+  return r}
 function rxPdf(p,r,mode){
   if(!window.jspdf){toast('The PDF tool did not load. Check your internet and reload the page.');return}
   const P=pdfBase('Prescription');const {doc,W,M,CW,st,clean,C,ensure,kv}=P;
@@ -2812,7 +3006,9 @@ document.addEventListener('submit',async e=>{
       await sb.from('clinics').update({reg_body:$('#cc-regbody').value,reg_no:v('cc-regno'),ntn:v('cc-ntn')}).eq('id',data);
       if(v('cc-pmdc'))await sb.rpc('set_my_pmdc',{p_clinic:data,p_pmdc:v('cc-pmdc')});
       let rc=null;if(LOCAL){const r=await sb.rpc('new_recovery_code',{p_clinic:data});rc=r.data}
-      showWelcome=!rc;await afterLogin(data);if(rc){view.recoveryCode=rc;view.screen='recovery';render()}else toast('Clinic created');return;
+      const fac=($('#cc-fac')||{}).value||'dental_clinic';
+      showWelcome=!rc;await afterLogin(data);
+      try{await saveBranding(fac==='dental_hospital'?Object.assign({facility:fac,depts:DENTAL_DEPTS.slice()},hospUnits()):{facility:fac})}catch(e2){}if(rc){view.recoveryCode=rc;view.screen='recovery';render()}else toast('Clinic created');return;
     }
     if(f.id==='joinForm'){
       if(!v('jc-code'))throw new Error('Enter the invite code.');
@@ -2965,6 +3161,14 @@ document.addEventListener('click',async e=>{
   if(d.act==='earnLock'){earn.unlockedAt=0;earn.pays=null;render();return}
   if(d.act==='earnForgot'){earn.mode='set';earn.err='';render();return}
   if(d.act==='earnCancelSet'){earn.mode='';earn.err='';render();return}
+  if(d.rxgiven){const [pid,rid]=d.rxgiven.split('|');const pp=db.patients.find(x=>x.id===pid),rr=pp&&(pp.rx||[]).find(x=>x.id===rid);if(rr){rr.pharm={status:'given',by:me.name,at:Date.now()};markDirty(pid);render();toast('Marked as given')}return}
+  if(d.labdone){const [pid,lid]=d.labdone.split('|');const pp=db.patients.find(x=>x.id===pid),ll=pp&&(pp.labs||[]).find(x=>x.id===lid);if(ll){const i=document.querySelector('[data-labres="'+lid+'"]');ll.status='done';ll.result=i?i.value.trim():'';ll.doneBy=me.name;ll.doneAt=Date.now();markDirty(pid);render();toast('Marked as done');try{if(ll.byId&&ll.byId!==user.id)await sendMessage(ll.byId,'Lab result ready for '+pp.first+' '+pp.last+': '+ll.what+(ll.result?' – '+ll.result:''),{kind:'lab',patient_id:pid})}catch(e){}}return}
+  if(d.act==='labAdd'){const pp=P();if(!pp)return;const what=$('#lab-what').value,note=($('#lab-note').value||'').trim();const l={id:uid(),what,note,date:today(),at:Date.now(),by:me.name,byId:user.id,status:'requested'};pp.labs=pp.labs||[];pp.labs.push(l);save();render();toast('Sent to the lab');notifyUnit('lab','Lab request for '+pp.first+' '+pp.last+': '+what+(note?' – '+note:''),pp.id);return}
+  if(d.deptf!==undefined){view.dept=d.deptf;render();return}
+  if(d.deptdel!==undefined){const ds=deptList().slice();ds.splice(+d.deptdel,1);await deptSave({depts:ds});return}
+  if(d.act==='deptAdd'){const i=$('#dept-new'),n=(i&&i.value||'').trim();if(!n)return;if(deptList().includes(n)){toast('Already in the list');return}await deptSave({depts:deptList().concat([n])},'Department added');return}
+  if(d.act==='deptReady'){await deptSave(Object.assign({depts:DENTAL_DEPTS.slice(),facility:'dental_hospital'},hospUnits()),'Ready-made dental departments, Pharmacy and Lab added');return}
+  if(d.act==='deptClear'){await deptSave({depts:[]});return}
   if(d.home){stopXrWatch();stopCamera();view=Object.assign(view,{screen:d.home,pid:null,confirm:null,msg:null});
     if(d.home==='appts'){view.day=view.day||today();apptsDay=[];render();refreshAppts();}
     else if(d.home==='earn'){earn.err='';earn.mode='';render();if(earnOpen())loadEarn();else{const i=$('#earn-pin')||$('#ep-pw');if(i)i.focus()}}
@@ -3046,7 +3250,7 @@ document.addEventListener('click',async e=>{
     case 'reload':location.reload();break;
     case 'showRecover':view.email=$('#li-email')?$('#li-email').value:'';view.showRecover=!view.showRecover;view.msg=null;render();break;
     case 'rcDone':if(!$('#rc-ok').checked){toast('Tick the box once you have saved the code');break;}view.recoveryCode=null;clinic.has_recovery=true;view.screen='welcome';render();Sound.play('success');break;
-    case 'enterApp':view.screen='list';render();break;
+    case 'enterApp':view=Object.assign(view,{screen:'appts',day:today()});render();refreshAppts();break;
     case 'askRecovery':view.confirm='newrc';render();break;
     case 'makeRecovery':{const {data,error}=await sb.rpc('new_recovery_code',{p_clinic:clinic.id});if(error){toast(friendly(error));break;}
       view.newRecovery=data;view.confirm=null;clinic.has_recovery=true;const m=memberships.find(x=>x.clinic_id===clinic.id);if(m)m.clinics.has_recovery=true;render();break;}
@@ -3190,6 +3394,9 @@ document.addEventListener('change',async e=>{
   if(el.id==='attPick'&&el.value){attDay=el.value;attRows=null;render();await loadAttendance(attDay);render();return}
   if(el.id==='dayPick'&&el.value){view.day=el.value;render();refreshAppts();return}
   if(el.dataset.roleuid){const {error}=await sb.rpc('set_member_role',{p_clinic:clinic.id,p_user:el.dataset.roleuid,p_role:el.value});if(error){toast(friendly(error));await loadTeam();render();return}await loadTeam();render();toast('Role changed');return}
+  if(el.id==='unit-pharmacy'||el.id==='unit-lab'){const k=el.id==='unit-lab'?'lab':'pharmacy';const u=Object.assign({},unitsOf());u[k]=el.checked;if(el.checked&&!u[k==='lab'?'labSince':'phSince'])u[k==='lab'?'labSince':'phSince']=Date.now();await deptSave({units:u});return}
+  if(el.dataset&&el.dataset.unitstaff){const k=el.dataset.unitstaff,key=k==='pharmacy'?'pharmaStaff':'labStaff';let a=staffIds(k).slice();a=el.checked?a.concat([el.value]):a.filter(x=>x!==el.value);await deptSave({[key]:a});return}
+  if(el.id==='facility-sel'){const f=el.value;const patch={facility:f};if(f==='dental_hospital'){if(!deptList().length)patch.depts=DENTAL_DEPTS.slice();Object.assign(patch,hospUnits())}await deptSave(patch);return}
   if(el.id==='switchClinic'){const m=memberships.find(x=>x.clinic_id===el.value);if(m)await openClinic(m);return}
   if(el.id==='importFile'&&el.files&&el.files[0]){try{const d=JSON.parse(await el.files[0].text());const list=Array.isArray(d)?d:(d.patients||(d.tables&&d.tables.patients)||[]);await importPatients(list.filter(x=>!x.example));}catch(err){toast('That file is not a valid backup')}el.value='';return}
   if((el.dataset.f&&(el.tagName==='SELECT'||el.type==='date'))||el.dataset.mhf==='signed'||el.dataset.bpe!==undefined)render();

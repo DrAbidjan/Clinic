@@ -594,7 +594,7 @@ html[data-bg=photo] .main{background:linear-gradient(color-mix(in srgb,var(--bg)
 /* online booking */
 .onlinebadge{align-self:center;display:inline-flex;align-items:center;gap:4px;padding:2px 12px;border-radius:999px;font-size:.75rem;font-weight:600;letter-spacing:.02em;color:#fff;background:linear-gradient(90deg,#0f9b8e,#22b573);box-shadow:0 0 0 3px rgba(34,181,115,.18);width:max-content}
 .appt .ai>.onlinebadge{align-self:flex-start}
-:root[data-theme="dark"] @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .bknotify{border-left:4px solid var(--accent)}.bknotify.declined{border-left-color:var(--alert)}
+.bknotify{border-left:4px solid var(--accent)}.bknotify.declined{border-left-color:var(--alert)}
 .bkhist summary{cursor:pointer;padding:2px 0}
 .bkhist-list{display:flex;flex-direction:column;gap:8px;margin-top:10px;max-height:520px;overflow:auto}
 .bkrow{display:grid;grid-template-columns:76px 1fr;gap:10px;padding:10px;border:1px solid var(--line);border-radius:12px;background:var(--paper)}
@@ -613,6 +613,25 @@ html[data-bg=photo] .main{background:linear-gradient(color-mix(in srgb,var(--bg)
 .bkqr-code{background:#fff;padding:8px;border-radius:10px;border:1px solid var(--line);width:184px;height:184px;flex:none}
 .bkqr-code img,.bkqr-code canvas{display:block;width:168px!important;height:168px!important}
 .bklink{word-break:break-all;font-size:.9rem;font-weight:600}
+
+/* Smart Help, departments */
+.helpfab{position:fixed;right:16px;bottom:calc(18px + env(safe-area-inset-bottom,0px));z-index:30;display:inline-flex;align-items:center;gap:6px;padding:12px 16px;min-height:46px;border:0;border-radius:999px;background:var(--accent);color:var(--paper);font-weight:600;font-size:.95rem;font-family:inherit;box-shadow:0 10px 24px -8px rgba(0,0,0,.4);cursor:pointer}
+.helpfab:hover{filter:brightness(1.08)}
+.helpsheet{position:fixed;inset:0;z-index:60;background:rgba(8,26,30,.55);display:flex;align-items:flex-end;justify-content:center}
+.helpsheet .hbox{width:100%;max-width:560px;max-height:88vh;overflow:auto;background:var(--paper);color:var(--ink);border-radius:22px 22px 0 0;padding:18px 18px calc(22px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:12px;box-shadow:0 -16px 40px rgba(0,0,0,.35)}
+@media (min-width:700px){.helpsheet{align-items:center}.helpsheet .hbox{border-radius:22px;max-height:80vh}}
+.helpsheet input[type=search]{width:100%;font-size:1.05rem;padding:13px 14px;border:2px solid var(--accent);border-radius:12px;background:var(--paper);color:var(--ink);box-sizing:border-box}
+.hres{border:1px solid var(--line);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:6px;margin-bottom:10px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:2px 0}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:999px;border:1px solid var(--line);background:var(--paper);color:var(--ink);font:inherit;font-size:.88rem;cursor:pointer}
+.chip.on{background:var(--accent);border-color:var(--accent);color:var(--paper)}
+span.chip{cursor:default}.chip button{border:0;background:transparent;color:inherit;font-size:1.1rem;line-height:1;cursor:pointer;padding:0 2px}
+.chips.deptf{margin:4px 0 10px}
+.hl-target{outline:3px solid #f2b600!important;outline-offset:4px;border-radius:12px;box-shadow:0 0 0 8px rgba(242,182,0,.25)!important;animation:hlpulse 1.4s ease-in-out 3}
+@keyframes hlpulse{50%{box-shadow:0 0 0 14px rgba(242,182,0,.12)}}
+.hl-tip{display:flex;align-items:center;gap:10px;background:#0b2227;color:#fff;border-radius:10px;padding:10px 12px;font-size:.9rem;margin:0 0 8px;position:sticky;top:8px;z-index:25}
+.hl-tip button{margin-left:auto;border:0;border-radius:8px;padding:6px 12px;background:#7fd3cb;color:#0b2227;font-weight:700;cursor:pointer}
+@media print{.helpfab,.helpsheet,.hl-tip{display:none!important}}
 </style>
 </head>
 <body>
