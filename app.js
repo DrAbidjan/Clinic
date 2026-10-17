@@ -467,6 +467,8 @@ const Upd={info:null,shown:false,
       if(k==='later'){d.remove();Upd.shown=false;Upd.snooze=Date.now();return}
       if(k==='go'){if(typeof dirty!=='undefined'&&dirty.size){try{await flush()}catch(err){}}
         try{const rs=await navigator.serviceWorker?.getRegistrations?.();if(rs)await Promise.all(rs.map(r=>r.update().catch(()=>{})))}catch(err){}
+        try{if(window.caches){const ks=await caches.keys();await Promise.all(ks.map(k=>caches.delete(k)))}}catch(err){}
+        try{await Promise.all(['app.js','index.html','config.js','local-db.js'].map(f=>fetch(f+'?r='+Date.now(),{cache:'reload'}).catch(()=>{})));await Promise.all(['app.js','index.html'].map(f=>fetch(f,{cache:'reload'}).catch(()=>{})))}catch(err){}
         location.reload()}})},
   whatsNew(){let seen='';try{seen=localStorage.getItem('seenVersion')||''}catch(e){}
     if(seen===APP_VERSION)return;try{localStorage.setItem('seenVersion',APP_VERSION)}catch(e){}
