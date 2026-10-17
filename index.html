@@ -8,6 +8,16 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Clinic Records">
 <title>Clinic Patient Records</title>
+<script>
+/* Visitors without a login first see the welcome page (home.html), if it is uploaded next to this file. */
+(function(){try{
+var q=location.search||'',has=false;
+for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);if(k&&k.indexOf('sb-')===0&&k.indexOf('auth-token')>0)has=true}
+if(q||has||location.hash||sessionStorage.getItem('inApp'))return;
+fetch('home.html',{method:'HEAD',cache:'no-store'}).then(function(r){if(r.ok)location.replace('home.html')}).catch(function(){});
+}catch(e){}})();
+</script>
+
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&family=Fraunces:opsz,wght@9..144,600&display=swap">
 <style>
@@ -275,7 +285,8 @@ table.att td.num{font-variant-numeric:tabular-nums}
 .b-text{white-space:pre-wrap;overflow-wrap:anywhere}
 .bubble .linkbtn{padding:0;min-height:0;font-size:.82rem}
 .chat-form{display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--line);padding-top:10px}
-.badge{background:#ff8a65!important;color:#1b1b1b!important;border-radius:999px;padding:0 7px;font-weight:600}
+.badge{background:#e53935!important;color:transparent!important;font-size:0!important;border-radius:50%;width:10px;height:10px;min-width:10px;padding:0!important;display:inline-block;overflow:hidden}
+.rdot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#e53935;vertical-align:middle;margin-left:4px}
 .cam-box{background:#05080a;border-radius:12px;overflow:hidden;transition:opacity .2s}
 .cam-box video{display:block;width:100%;max-height:60vh;object-fit:contain}
 .cam-box.flash{opacity:.35}
@@ -616,6 +627,15 @@ html[data-bg=photo] .main{background:linear-gradient(color-mix(in srgb,var(--bg)
 .bkqr-code img,.bkqr-code canvas{display:block;width:168px!important;height:168px!important}
 .bklink{word-break:break-all;font-size:.9rem;font-weight:600}
 
+/* Orthodontic department */
+.orgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:8px 16px}
+.orck{align-items:flex-start;gap:10px;line-height:1.3}
+.orsec>summary{cursor:pointer;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.orbody{display:flex;flex-direction:column;gap:12px;margin-top:12px}
+.cephgrid{display:flex;flex-direction:column;gap:8px}
+.cephrow{display:grid;grid-template-columns:150px 110px 1fr auto;gap:10px;align-items:center}
+.cephrow input{width:100%}
+@media (max-width:640px){.cephrow{grid-template-columns:1fr 100px;grid-template-areas:'n i' 'u f'}.cephrow .cn{grid-area:n}.cephrow input{grid-area:i}.cephrow .small{grid-area:u}.cephrow .pill{grid-area:f;justify-self:end}}
 /* Smart Help, departments */
 .helpfab{position:fixed;right:16px;bottom:calc(18px + env(safe-area-inset-bottom,0px));z-index:30;display:inline-flex;align-items:center;gap:6px;padding:12px 16px;min-height:46px;border:0;border-radius:999px;background:var(--accent);color:var(--paper);font-weight:600;font-size:.95rem;font-family:inherit;box-shadow:0 10px 24px -8px rgba(0,0,0,.4);cursor:pointer}
 .helpfab:hover{filter:brightness(1.08)}
@@ -628,7 +648,7 @@ html[data-bg=photo] .main{background:linear-gradient(color-mix(in srgb,var(--bg)
 .chip{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:999px;border:1px solid var(--line);background:var(--paper);color:var(--ink);font:inherit;font-size:.88rem;cursor:pointer}
 .chip.on{background:var(--accent);border-color:var(--accent);color:var(--paper)}
 span.chip{cursor:default}.chip button{border:0;background:transparent;color:inherit;font-size:1.1rem;line-height:1;cursor:pointer;padding:0 2px}
-.chips.deptf{margin:4px 0 10px}
+.chips.deptf{margin:8px 0 10px}.deptbox{margin:4px 0 8px}
 .hl-target{outline:3px solid #f2b600!important;outline-offset:4px;border-radius:12px;box-shadow:0 0 0 8px rgba(242,182,0,.25)!important;animation:hlpulse 1.4s ease-in-out 3}
 @keyframes hlpulse{50%{box-shadow:0 0 0 14px rgba(242,182,0,.12)}}
 .hl-tip{display:flex;align-items:center;gap:10px;background:#0b2227;color:#fff;border-radius:10px;padding:10px 12px;font-size:.9rem;margin:0 0 8px;position:sticky;top:8px;z-index:25}
