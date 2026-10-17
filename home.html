@@ -1,52 +1,98 @@
 <!doctype html>
-<!-- ClinicRecords.pk – website. © 2026 Abid Ali. All rights reserved. -->
+<!-- ClinicRecords.pk – welcome page. © 2026 Abid Ali. All rights reserved. -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#1f5f6b">
-<title>ClinicRecords.pk – Patient records for clinics and hospitals</title>
-<meta name="description" content="Patient records, dental chart, treatment plans, appointments, online booking, prescriptions, pharmacy, laboratory and earnings for dental clinics and hospitals in Pakistan. By Abid Ali, Dentist and Forensic Odontologist.">
+<meta name="theme-color" content="#ffffff"><meta name="color-scheme" content="light">
+<title>Welcome to ClinicRecords.pk</title>
+<meta name="description" content="Patient records for dental clinics, medical centers and hospitals. Choose your facility type to create your own workspace.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
-<link rel="stylesheet" href="site.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&family=Source+Serif+4:wght@500;600&display=swap">
+<style>
+:root{--bg:#ffffff;--card:#fff;--ink:#1E2F4D;--muted:#5F7088;--line:#DDE4EA;--teal:#3E9A8A;--teal-d:#2E8577;--teal-soft:#E6F2F0;--wave1:#DCEBEA;--wave2:#CCE2E0;--ok:#1d6b34;--ok-soft:#e1f4e6;--warn:#8a5a00;--warn-soft:#fdf0d5}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'Nunito Sans',system-ui,-apple-system,'Segoe UI',sans-serif;line-height:1.5}
+a{color:var(--teal-d)}
+.page{position:relative;overflow:hidden;min-height:100vh}
+.waves{position:absolute;left:0;bottom:0;width:100%;height:220px;pointer-events:none}
+.in{position:relative;max-width:1080px;margin:0 auto;padding:40px 24px 60px}
+header{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:18px;padding-bottom:28px;border-bottom:1px solid var(--line)}
+.logo{width:72px;height:72px;border-radius:18px;background:var(--teal);display:flex;align-items:center;justify-content:center}
+.name{margin:0;font-size:clamp(2rem,6vw,2.75rem);font-weight:800;letter-spacing:-.5px;line-height:1}
+.name small{font-size:.6em;font-weight:700;color:var(--teal-d)}
+.tag{margin:8px 0 0;font-size:.9rem;font-weight:700;letter-spacing:2.4px;color:var(--muted)}
+.hero{text-align:center;padding:40px 0 0}
+.quote{margin:0 auto;max-width:720px;font-family:'Source Serif 4',Georgia,serif;font-size:clamp(1.35rem,3.6vw,2.1rem);line-height:1.3;font-weight:500}
+.rule{width:140px;height:2px;background:#CCE2E0;margin:32px auto}
+h1{margin:0;font-size:clamp(1.8rem,4.5vw,2.4rem);font-weight:800}
+.sub{margin:10px auto 0;max-width:460px;font-size:1.15rem;color:var(--muted)}
+.cards{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:22px;padding-top:44px}
+.c{flex:1 1 260px;max-width:300px;min-width:0;text-decoration:none;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:22px;padding:30px 26px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:12px;font:inherit}
+.c.big{flex-basis:280px;max-width:330px;border:2px solid var(--teal);border-radius:24px;padding:42px 28px;box-shadow:0 18px 40px rgba(46,133,119,.14)}
+button.c{cursor:pointer}
+.ico{width:64px;height:64px;border-radius:18px;background:var(--teal-soft);display:flex;align-items:center;justify-content:center}
+.big .ico{width:76px;height:76px;border-radius:20px;background:var(--teal)}
+.ico svg{width:34px;height:34px;stroke:var(--teal-d);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.big .ico svg{width:40px;height:40px;stroke:#fff}
+.t{font-size:1.4rem;font-weight:800}.big .t{font-size:1.65rem}
+.d{font-size:.95rem;color:var(--muted)}
+.go{margin-top:6px;padding:12px 22px;border:1.5px solid var(--teal);border-radius:12px;color:var(--teal-d);font-weight:700;font-size:.95rem}
+.big .go{margin-top:8px;padding:14px 26px;background:var(--teal);color:#fff;font-size:1rem}
+.badge{font-size:.72rem;font-weight:700;padding:3px 10px;border-radius:99px}.badge.soon{background:var(--warn-soft);color:var(--warn)}.badge.ok{background:var(--ok-soft);color:var(--ok)}
+.go.soon{border-color:var(--line);color:var(--ink)}
+.type{max-width:980px;margin:26px auto 0;padding:20px;border-radius:22px;background:var(--card);border:1px solid var(--line);box-shadow:0 18px 40px rgba(46,133,119,.1)}
+.type[hidden]{display:none}.type h2{margin:0 0 14px;font-size:1.2rem;text-align:center}
+.type .row{display:flex;flex-wrap:wrap;gap:16px}.type .c{max-width:none;border-radius:18px;padding:22px;flex:1 1 220px}
+.login{margin:36px 0 0;text-align:center;font-size:1.05rem;color:var(--muted)}.login a{font-weight:800}
+.incl{margin:44px auto 0;max-width:900px;padding:22px;border-radius:20px;background:var(--card);border:1px solid var(--line)}
+.incl h2{margin:0 0 4px;font-size:1.15rem;text-align:center}.incl p{margin:0 0 14px;text-align:center;color:var(--muted);font-size:.95rem}
+.incl ul{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+@media (max-width:640px){.incl ul{grid-template-columns:1fr}}
+.incl li{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:12px;background:var(--bg);font-size:.95rem}
+.incl li b{display:block}.incl li span.s{color:var(--muted);font-size:.88rem}
+.incl .badge{margin-left:6px;vertical-align:middle}
+footer{position:relative;text-align:center;font-size:.85rem;color:var(--muted);padding:0 16px 22px;margin-top:0}
+a:focus-visible,button:focus-visible{outline:3px solid var(--teal);outline-offset:3px}
+</style>
 </head>
 <body>
-<header class="top"><div class="wrap">
-  <a class="brand" href="home.html"><svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><rect x="2" y="2" width="28" height="28" rx="7" fill="var(--teal)"/><path d="M16 8v16M8 16h16" stroke="var(--bg)" stroke-width="3.2" stroke-linecap="round"/></svg><span>ClinicRecords<small>.pk</small></span></a>
-  <button class="btn menubtn" type="button" id="menubtn" aria-expanded="false" aria-controls="nav">☰ Menu</button>
-  <nav class="nav" id="nav" aria-label="Main menu"><a href="home.html" aria-current="page">About</a><a href="why.html">Why records matter</a><a href="features.html">Features</a><a href="plans.html">Plans</a><a href="privacy.html">Privacy</a><a href="contact.html">Contact</a><a class="btn" href="index.html" style="margin-left:6px">Log in</a></nav>
-</div></header>
-<main>
-<section class="me"><svg class="fp" viewBox="0 0 600 640" aria-hidden="true"><ellipse cx="300" cy="320" rx="16" ry="22" fill="none" stroke="#7fd3cb" stroke-width="2.4" stroke-dasharray="6 5" opacity="0.90"/><ellipse cx="300" cy="320" rx="27" ry="36" fill="none" stroke="#7fd3cb" stroke-width="1.4" opacity="0.87"/><ellipse cx="300" cy="320" rx="38" ry="50" fill="none" stroke="#7fd3cb" stroke-width="1.4" opacity="0.84"/><ellipse cx="300" cy="320" rx="49" ry="64" fill="none" stroke="#7fd3cb" stroke-width="2.4" opacity="0.81"/><ellipse cx="300" cy="320" rx="60" ry="78" fill="none" stroke="#7fd3cb" stroke-width="1.4" stroke-dasharray="6 5" opacity="0.78"/><ellipse cx="300" cy="320" rx="71" ry="92" fill="none" stroke="#7fd3cb" stroke-width="1.4" opacity="0.75"/><ellipse cx="300" cy="320" rx="82" ry="106" fill="none" stroke="#7fd3cb" stroke-width="2.4" opacity="0.72"/><ellipse cx="300" cy="320" rx="93" ry="120" fill="none" stroke="#7fd3cb" stroke-width="1.4" opacity="0.69"/><ellipse cx="300" cy="320" rx="104" ry="134" fill="none" stroke="#7fd3cb" stroke-width="1.4" stroke-dasharray="6 5" opacity="0.66"/><ellipse cx="300" cy="320" rx="115" ry="148" fill="none" stroke="#7fd3cb" stroke-width="2.4" opacity="0.63"/><ellipse cx="300" cy="320" rx="126" ry="162" fill="none" stroke="#7fd3cb" stroke-width="1.4" opacity="0.60"/><ellipse cx="300" cy="320" rx="137" ry="176" fill="none" stroke="#7fd3cb" stroke-width="1.4" opacity="0.57"/><ellipse cx="300" cy="320" rx="148" ry="190" fill="none" stroke="#7fd3cb" stroke-width="2.4" stroke-dasharray="6 5" opacity="0.54"/><ellipse cx="300" cy="320" rx="159" ry="204" fill="none" stroke="#7fd3cb" stroke-width="1.4" opacity="0.51"/><ellipse cx="300" cy="320" rx="170" ry="218" fill="none" stroke="#7fd3cb" stroke-width="1.4" opacity="0.48"/><ellipse cx="300" cy="320" rx="181" ry="232" fill="none" stroke="#7fd3cb" stroke-width="2.4" opacity="0.45"/><ellipse cx="300" cy="320" rx="192" ry="246" fill="none" stroke="#7fd3cb" stroke-width="1.4" stroke-dasharray="6 5" opacity="0.42"/><ellipse cx="300" cy="320" rx="203" ry="260" fill="none" stroke="#7fd3cb" stroke-width="1.4" opacity="0.39"/><ellipse cx="300" cy="320" rx="214" ry="274" fill="none" stroke="#7fd3cb" stroke-width="2.4" opacity="0.36"/><ellipse cx="300" cy="320" rx="225" ry="288" fill="none" stroke="#7fd3cb" stroke-width="1.4" opacity="0.33"/><ellipse cx="300" cy="320" rx="236" ry="302" fill="none" stroke="#7fd3cb" stroke-width="1.4" stroke-dasharray="6 5" opacity="0.30"/><ellipse cx="300" cy="320" rx="247" ry="316" fill="none" stroke="#7fd3cb" stroke-width="2.4" opacity="0.27"/><path d="M300 10V630M10 320H590" stroke="#7fd3cb" stroke-width="1" opacity=".5"/></svg><svg class="ecg" viewBox="0 0 1200 120" preserveAspectRatio="none" aria-hidden="true"><path d="M0 60H380l20-8 20 8h60l15-50 25 100 20-55h40l20-8 20 8H1200" fill="none" stroke="#7fd3cb" stroke-width="2.5" vector-effect="non-scaling-stroke"/></svg><div class="wrap">
-  <div class="photo" aria-label="Photo of Abid Ali"><span>AA</span><img src="founder.jpg" alt="Abid Ali" style="position:absolute" width="240" height="280" onerror="this.remove()"></div>
-  <div class="txt"><p class="eyebrow">About me</p>
-    <h1>Abid Ali<span>Dentist &amp; Forensic Odontologist</span></h1>
-    <blockquote>“Forensic odontology taught me one thing above all: a dental record is never just paperwork. It can protect a patient from a mistake, protect a dentist in a dispute, and one day help a family find answers. I built ClinicRecords.pk so that keeping good records becomes simple for every clinic.”</blockquote>
-    <div class="reach"><b>Reach out when you are ready – I'm happy to show you how it works.</b><a class="btn mint" href="https://wa.me/923113124533">WhatsApp 0311 3124533</a></div>
-  </div></div></section><section class="band soft" id="signup"><div class="wrap">
-  <div class="head"><p class="eyebrow">Sign up</p><h2>Choose your clinic or hospital</h2><p class="lead">Start with 14 days free – every feature, no card needed.</p></div>
-  <div class="grid g3">
-    <div class="cardx"><div class="ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.5 4C5 4 4 6 4 8.5c0 3 1.5 4.5 2 7.5.4 2.5 1 4 2 4s1.5-2 2-4 1-2.5 2-2.5 1.5.5 2 2.5.9 4 2 4 1.6-1.5 2-4c.5-3 2-4.5 2-7.5C20 6 19 4 16.5 4c-2 0-3 1-4.5 1S9.5 4 7.5 4z"/></svg></div><span class="badge ok">Available now</span><h3>Dental clinic</h3><ul><li>Dental chart, treatment plans, RCT notes</li><li>Prescriptions, X-rays, payments</li><li>Online booking with QR code</li></ul><a class="btn primary" href="index.html?signup=1&amp;type=dental_clinic">Sign up</a></div>
-    <div class="cardx"><div class="ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4v5a4 4 0 0 0 8 0V4"/><path d="M10 13v2a5 5 0 0 0 10 0v-2"/><circle cx="20" cy="11" r="2"/></svg></div><span class="badge soon">Coming soon</span><h3>Medical clinic</h3><ul><li>Patient files and medical history</li><li>Prescriptions and online booking</li></ul><a class="btn" href="https://wa.me/923113124533?text=Hello,%20I%20would%20like%20to%20register%20my%20interest%20in%20ClinicRecords.pk%20for%20a%20medical%20clinic.">Register interest</a></div>
-    <div class="cardx sel" id="hospcard"><div class="ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 21V5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v16"/><path d="M3 21h18M12 8v6M9 11h6M10 21v-3h4v3"/></svg></div><span class="badge ok">Dental hospitals available now</span><h3>Hospital</h3><ul><li>Departments, many doctors, own logins</li><li>Pharmacy and laboratory attached</li><li>Earnings per dentist, salaries, expenses</li></ul><button class="btn primary" type="button" id="hospbtn" aria-expanded="true" aria-controls="hospsub">Choose type ↓</button></div>
+<div class="page">
+
+<div class="in">
+<header>
+  <div class="logo"><svg aria-hidden="true" width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1"/><path d="M12 9v6M9 12h6"/></svg></div>
+  <div><p class="name">ClinicRecords<small>.pk</small></p><p class="tag">MEDICAL · DENTAL · HOSPITALS</p></div>
+</header>
+<section class="hero">
+  <p class="quote">A record written today protects your patient, your practice — and one day, a family's right to know.</p>
+  <div class="rule"></div>
+  <h1>Welcome to ClinicRecords</h1>
+  <p class="sub">Choose your facility type to create your own workspace.</p>
+</section>
+<section class="cards" aria-label="Facility types">
+  <a class="c" href="index.html?signup=1&amp;type=dental_clinic">
+    <div class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.5 4C5 4 4 6 4 8.5c0 3 1.5 4.5 2 7.5.4 2.5 1 4 2 4s1.5-2 2-4 1-2.5 2-2.5 1.5.5 2 2.5.9 4 2 4 1.6-1.5 2-4c.5-3 2-4.5 2-7.5C20 6 19 4 16.5 4c-2 0-3 1-4.5 1S9.5 4 7.5 4z"/></svg></div>
+    <span class="badge ok">Available now</span><span class="t">Dental Clinic</span><span class="d">Tooth chart, treatment plans and patient visits</span><span class="go">Create workspace</span></a>
+  <button class="c big" type="button" id="hbtn" aria-expanded="false" aria-controls="htype">
+    <div class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 21V5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v16"/><path d="M3 21h18M12 8v6M9 11h6M10 21v-3h4v3"/></svg></div>
+    <span class="t">Hospital</span><span class="d">All departments, one shared patient record</span><span class="go">Choose hospital type ↓</span></button>
+  <a class="c" href="https://wa.me/923113124533?text=Hello%2C%20I%20would%20like%20to%20register%20my%20interest%20in%20ClinicRecords.pk%20for%20a%20medical%20center.">
+    <div class="ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4v5a4 4 0 0 0 8 0V4"/><path d="M10 13v2a5 5 0 0 0 10 0v-2"/><circle cx="20" cy="11" r="2"/></svg></div>
+    <span class="badge soon">Coming soon</span><span class="t">Medical Center</span><span class="d">Prescriptions, lab reports and patient history</span><span class="go soon">Register interest</span></a>
+</section>
+<section class="type" id="htype">
+  <h2>Hospital – which departments do you need?</h2>
+  <div class="row">
+    <a class="c" href="index.html?signup=1&amp;type=dental_hospital"><span class="badge ok">Available now</span><span class="t">Dental Hospital</span><span class="d">Dental departments, pharmacy and laboratory</span><span class="go" style="background:var(--teal);color:#fff">Create workspace</span></a>
+    <a class="c" href="https://wa.me/923113124533?text=Hello%2C%20I%20would%20like%20to%20register%20my%20interest%20in%20ClinicRecords.pk%20for%20a%20medical%20hospital."><span class="badge soon">Coming soon</span><span class="t">Medical Hospital</span><span class="d">Medical departments, pharmacy and laboratory</span><span class="go soon">Register interest</span></a>
+    <a class="c" href="https://wa.me/923113124533?text=Hello%2C%20I%20would%20like%20to%20know%20the%20price%20of%20ClinicRecords.pk%20for%20a%20hospital%20with%20both%20dental%20and%20medical%20departments."><span class="badge soon">Other price</span><span class="t">Both</span><span class="d">Dental and medical departments in one hospital</span><span class="go soon">Ask for the price</span></a>
   </div>
-  <div class="sub" id="hospsub"><div class="subh">Hospital – which type?</div><div class="grid g2">
-    <div class="cardx"><div class="ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.5 4C5 4 4 6 4 8.5c0 3 1.5 4.5 2 7.5.4 2.5 1 4 2 4s1.5-2 2-4 1-2.5 2-2.5 1.5.5 2 2.5.9 4 2 4 1.6-1.5 2-4c.5-3 2-4.5 2-7.5C20 6 19 4 16.5 4c-2 0-3 1-4.5 1S9.5 4 7.5 4z"/></svg></div><span class="badge ok">Available now</span><h3>Dental hospital</h3><ul><li>Departments: orthodontics, surgery, endodontics and more</li><li>Pharmacy and laboratory attached</li><li>Dentist, accountant and admin roles</li></ul><a class="btn primary" href="index.html?signup=1&amp;type=dental_hospital">Sign up</a></div>
-    <div class="cardx"><div class="ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4v5a4 4 0 0 0 8 0V4"/><path d="M10 13v2a5 5 0 0 0 10 0v-2"/><circle cx="20" cy="11" r="2"/></svg></div><span class="badge soon">Coming soon</span><h3>Medical hospital</h3><ul><li>Departments and many doctors</li><li>Pharmacy and laboratory attached</li></ul><a class="btn" href="https://wa.me/923113124533?text=Hello,%20I%20would%20like%20to%20register%20my%20interest%20in%20ClinicRecords.pk%20for%20a%20medical%20hospital.">Register interest</a></div></div></div>
-  <div class="flow"><b>After sign-up:</b> <span>① Create your clinic or hospital</span> → <span>② Add departments, or use the ready-made dental set-up</span> → <span>③ The app opens on Appointments</span></div>
-</div></section>
-<script>(function(){var s=document.getElementById('hospsub'),b=document.getElementById('hospbtn');if(!s||!b)return;s.hidden=true;b.setAttribute('aria-expanded','false');b.addEventListener('click',function(){var h=s.hidden;s.hidden=!h;b.setAttribute('aria-expanded',h);if(h)s.scrollIntoView({behavior:'smooth',block:'center'})})})();</script>
-<section class="band"><div class="wrap">
-  <div class="head"><p class="eyebrow">Read more</p><h2>Choose what you want to read</h2></div>
-  <div class="grid g4 pages">
-    <a class="cardx" href="why.html"><b>Why records matter</b><span>Identification, patient safety and legal protection</span></a>
-    <a class="cardx" href="features.html"><b>Features</b><span>Chart, plans, booking, prescriptions, earnings, Smart Help</span></a>
-    <a class="cardx" href="plans.html"><b>Plans</b><span>One full version, 14 days free</span></a>
-    <a class="cardx" href="privacy.html"><b>Privacy &amp; security</b><span>How patient data stays safe</span></a>
-  </div></div></section>
-</main>
-<footer><div class="wrap"><span>© 2026 ClinicRecords.pk · Developed and designed by Abid Ali, Dentist &amp; Forensic Odontologist</span><nav aria-label="Footer"><a href="home.html">About</a><a href="why.html">Why records matter</a><a href="features.html">Features</a><a href="plans.html">Plans</a><a href="privacy.html">Privacy</a><a href="contact.html">Contact</a></nav></div></footer>
-<script>var b=document.getElementById('menubtn'),n=document.getElementById('nav');b.addEventListener('click',function(){var o=n.classList.toggle('open');b.setAttribute('aria-expanded',o)});n.addEventListener('click',function(e){if(e.target.tagName==='A')n.classList.remove('open')});</script>
+</section>
+<p class="login">Already have a workspace? <a href="index.html">Log in</a></p>
+
+</div>
+<footer>© 2026 ClinicRecords.pk · Developed and designed by Abid Ali, Dentist &amp; Forensic Odontologist · <a href="https://wa.me/923113124533">WhatsApp 0311 3124533</a></footer>
+</div>
+<script>(function(){var s=document.getElementById('htype'),b=document.getElementById('hbtn');s.hidden=true;b.addEventListener('click',function(){var h=s.hidden;s.hidden=!h;b.setAttribute('aria-expanded',h);if(h)s.scrollIntoView({behavior:'smooth',block:'center'})})})();</script>
 </body>
 </html>

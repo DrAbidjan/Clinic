@@ -7,7 +7,7 @@
 const CONFIG=window.CLINIC_CONFIG||{SUPABASE_URL:'',SUPABASE_ANON_KEY:''};
 const LOCAL=!!window.__LOCAL_DB;
 /* Seller details shown on the Activation screen. Fill these in (keep the quote marks). */
-const APP_VERSION='17 Oct 2026 · Smart Help, departments, pharmacy and lab';
+const APP_VERSION='17 Oct 2026 · page colour, pharmacy and lab';
 const SELLER={name:'',whatsapp:'03113124533',price:'Rs 25,000'};
 
 const $=s=>document.querySelector(s);
@@ -210,7 +210,7 @@ const Sound={ctx:null,on:lsGet('sound')!=='off',
 };
 /* Clinic logo and screen background (admin sets them; saved for the whole clinic) */
 let branding={},brandingId=null,brandingErr='';
-const BG_CHOICES=[['','Plain'],['teal','Teal glow'],['sand','Warm sand'],['mint','Fresh mint'],['rose','Soft rose'],['sky','Sky blue'],['slate','Slate'],['photo','My own photo']];
+const BG_CHOICES=[['','Plain'],['teal','Teal glow'],['sand','Warm sand'],['mint','Fresh mint'],['rose','Soft rose'],['sky','Sky blue'],['slate','Slate'],['custom','My own colour'],['photo','My own photo']];
 async function loadBranding(){
   try{const {data,error}=await sb.from('finance').select('*').eq('clinic_id',clinic.id).eq('kind','branding');if(error)throw error;
     const r=(data||[])[0];branding=r?(r.data||{}):{};brandingId=r?r.id:null;brandingErr=''}
@@ -220,6 +220,7 @@ async function loadBranding(){
 function applyBranding(){
   const root=document.documentElement;const bg=branding.bg||'';
   if(bg)root.dataset.bg=bg;else delete root.dataset.bg;
+  if(bg==='custom'&&branding.bgColor)root.style.setProperty('--bgcol',branding.bgColor);else root.style.removeProperty('--bgcol');
   if(bg==='photo'&&branding.bgImage)root.style.setProperty('--bgimg',`url("${branding.bgImage}")`);else root.style.removeProperty('--bgimg');
 }
 async function saveBranding(patch){
@@ -423,6 +424,7 @@ function brandingPanel(){
       <div class="row"><label class="btn small primary filebtn">${branding.logo?'Change logo':'Upload logo'}<input type="file" id="brand-logo" accept="image/png,image/jpeg,image/webp"></label>${branding.logo?'<button class="btn small" data-act="logoRemove">Remove logo</button>':''}</div></div></div>
     <p class="small" style="margin:6px 0 0"><b>Background of the main screen</b> (for everyone in the clinic)</p>
     <div class="bgchoices">${BG_CHOICES.map(([k,l])=>`<button type="button" class="bgsw ${bg===k?'on':''}" data-bgset="${k}" data-sw="${k||'plain'}" aria-pressed="${bg===k}"><i></i><span>${l}</span></button>`).join('')}</div>
+    ${bg==='custom'?`<div class="row"><label class="f" style="flex-direction:row;align-items:center;gap:10px"><span>Pick the colour of the whole page</span><input type="color" id="brand-col" value="${esc(branding.bgColor||'#cfe8e5')}" style="width:56px;height:44px;padding:2px"></label><span class="small muted">It is shown softly so the text stays easy to read.</span></div>`:''}
     ${bg==='photo'||view.bgPhoto?`<div class="row"><label class="btn small filebtn">${branding.bgImage?'Change photo':'Choose photo'}<input type="file" id="brand-bg" accept="image/png,image/jpeg,image/webp"></label><span class="small muted">A calm photo works best; it is faded so text stays easy to read.</span></div>`:''}
   </section>`;
 }
@@ -3126,7 +3128,7 @@ document.addEventListener('click',async e=>{
   if(d.act==='bkPoster'){try{await bookingPoster()}catch(err){toast(friendly(err))}return}
   if(d.act==='bkNewCode'){if(!confirm('Make a new booking code? The old QR code and link will stop working.'))return;const code=newBookingCode();const {error}=await sb.from('clinics').update({booking_code:code}).eq('id',clinic.id);if(error){toast(friendly(error));return}booking.code=code;render();toast('New QR code made – print the new poster');return}
   if(d.bgset!==undefined){if(!isAdmin())return;if(d.bgset==='photo'&&!branding.bgImage){view.bgPhoto=true;render();toast('Choose a photo for the background');return}
-    try{await saveBranding({bg:d.bgset});view.bgPhoto=false;render();toast('Background changed')}catch(err){toast(friendly(err))}return}
+    try{await saveBranding(d.bgset==='custom'&&!branding.bgColor?{bg:'custom',bgColor:'#cfe8e5'}:{bg:d.bgset});view.bgPhoto=false;render();toast('Background changed')}catch(err){toast(friendly(err))}return}
   if(d.act==='logoRemove'){try{await saveBranding({logo:''});render();toast('Logo removed')}catch(err){toast(friendly(err))}return}
   if(d.tonetest){Sound.preset(Sound.toneFor(d.tonetest));return}
   if(d.earnsec){earn.sec=d.earnsec;render();return}
@@ -3396,6 +3398,7 @@ document.addEventListener('change',async e=>{
   if(el.dataset.roleuid){const {error}=await sb.rpc('set_member_role',{p_clinic:clinic.id,p_user:el.dataset.roleuid,p_role:el.value});if(error){toast(friendly(error));await loadTeam();render();return}await loadTeam();render();toast('Role changed');return}
   if(el.id==='unit-pharmacy'||el.id==='unit-lab'){const k=el.id==='unit-lab'?'lab':'pharmacy';const u=Object.assign({},unitsOf());u[k]=el.checked;if(el.checked&&!u[k==='lab'?'labSince':'phSince'])u[k==='lab'?'labSince':'phSince']=Date.now();await deptSave({units:u});return}
   if(el.dataset&&el.dataset.unitstaff){const k=el.dataset.unitstaff,key=k==='pharmacy'?'pharmaStaff':'labStaff';let a=staffIds(k).slice();a=el.checked?a.concat([el.value]):a.filter(x=>x!==el.value);await deptSave({[key]:a});return}
+  if(el.id==='brand-col'){if(!isAdmin())return;try{await saveBranding({bg:'custom',bgColor:el.value});toast('Page colour saved')}catch(err){toast(friendly(err))}return}
   if(el.id==='facility-sel'){const f=el.value;const patch={facility:f};if(f==='dental_hospital'){if(!deptList().length)patch.depts=DENTAL_DEPTS.slice();Object.assign(patch,hospUnits())}await deptSave(patch);return}
   if(el.id==='switchClinic'){const m=memberships.find(x=>x.clinic_id===el.value);if(m)await openClinic(m);return}
   if(el.id==='importFile'&&el.files&&el.files[0]){try{const d=JSON.parse(await el.files[0].text());const list=Array.isArray(d)?d:(d.patients||(d.tables&&d.tables.patients)||[]);await importPatients(list.filter(x=>!x.example));}catch(err){toast('That file is not a valid backup')}el.value='';return}

@@ -1,5 +1,5 @@
 {
- "version": "17 Oct 2026 · Smart Help, departments, pharmacy and lab",
+ "version": "17 Oct 2026 · page colour, pharmacy and lab",
  "date": "17 Oct 2026",
  "notes": [
   "Appointments now open first after you log in.",
@@ -7,6 +7,7 @@
   "Hospitals: choose Dental hospital to use departments. Every patient can have a department, and the list can be filtered.",
   "Pharmacy: new prescriptions appear in the Pharmacy list; chosen staff get a pop-up and sound.",
   "Laboratory: dentists send lab requests from the patient's Lab tab; the lab marks them done with a result.",
-  "Fixed a style line so all screens look correct."
+  "Fixed a style line so all screens look correct.",
+  "Settings → background: choose the colour of the whole page, or your own photo."
  ]
 }
