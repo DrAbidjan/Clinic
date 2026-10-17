@@ -2180,8 +2180,8 @@ function settingsView(){
   ${admin||isAcct()?attendancePanel():''}
   ${LOCAL&&admin?recoveryPanel():''}
   <section class="panel" ${LOCAL?'hidden':''}>
-    <h3>Invite dentists</h3>
-    ${admin?`<p class="small muted" style="margin:0">Send this code to a dentist. They create an account, choose “Join a clinic” and enter it.</p>
+    <h3>Invite dentists, lab and pharmacy</h3>
+    ${admin&&!LOCAL?unitLoginHtml():admin?`<p class="small muted" style="margin:0">Send this code to a dentist. They create an account, choose “Join a clinic” and enter it.</p>
     <div class="row"><span class="invite" id="invite">${esc(clinic.invite_code)}</span><span class="spacer"></span><button class="btn small" data-act="copyCode">Copy</button>
     ${view.confirm==='newcode'?`<button class="btn small" data-act="cancelConfirm">Keep code</button><button class="btn small danger" data-act="newCode">Make new code</button>`:`<button class="btn small" data-act="askNewCode">New code</button>`}</div>
     ${view.confirm==='newcode'?'<p class="small" style="margin:0">The old code will stop working. People already in the clinic stay.</p>':''}`
@@ -2196,7 +2196,7 @@ function settingsView(){
       ${admin&&!self?`<span class="row" style="gap:6px;width:100%;justify-content:flex-end">
         ${LOCAL?(view.confirm==='pw:'+t.user_id?`<form id="resetPwForm" class="row" style="width:100%;gap:6px" data-uid="${t.user_id}"><input type="password" id="rp-pw" placeholder="New password (8+ characters)" minlength="8" autocomplete="new-password" style="flex:1;min-width:0"><button class="btn small primary" type="submit">Save</button><button class="btn small" type="button" data-act="cancelConfirm">Cancel</button></form>`:`<button class="btn small" data-askpw="${t.user_id}">Reset password</button>`):''}
         <select class="rolesel" data-roleuid="${t.user_id}" aria-label="Role of ${esc(t.name)}">${['dentist','accountant','admin'].map(r=>`<option value="${r}" ${t.role===r?'selected':''}>${ROLE_LABEL[r]}</option>`).join('')}</select>
-        ${view.confirm==='rm:'+t.user_id?`<button class="btn small" data-act="cancelConfirm">Keep</button><button class="btn small danger" data-rm="${t.user_id}">Yes, remove</button>`:`<button class="btn small danger" data-askrm="${t.user_id}">Remove</button>`}
+        ${view.confirm==='rm:'+t.user_id?`<input type="password" id="rm-pw" placeholder="Your password" autocomplete="current-password" style="max-width:180px"><button class="btn small" data-act="cancelConfirm">Keep</button><button class="btn small danger" data-rm="${t.user_id}">Yes, remove</button>`:`<button class="btn small danger" data-askrm="${t.user_id}">Remove</button>`}
       </span>`:''}
     </div>`}).join('')}</div>
   </section>
@@ -3401,7 +3401,9 @@ document.addEventListener('click',async e=>{
   if(d.del){p.plan=p.plan.filter(x=>x.id!==d.del);save();render();toast('Item removed');return}
   if(d.role){const {error}=await sb.rpc('set_member_role',{p_clinic:clinic.id,p_user:d.uid,p_role:d.role});if(error){toast(friendly(error));return}await loadTeam();render();toast('Role changed');return}
   if(d.askrm){view.confirm='rm:'+d.askrm;render();return}
-  if(d.rm){const {error}=await sb.from('members').delete().eq('clinic_id',clinic.id).eq('user_id',d.rm);if(error){toast(friendly(error));return}view.confirm=null;await loadTeam();render();toast('Removed from the clinic');return}
+  if(d.rm){const pw=($('#rm-pw')||{}).value||'';if(!pw){toast('Type your password to remove this person.');return}
+    try{const r=await sb.auth.signInWithPassword({email:user.email,password:pw});if(r.error)throw r.error}catch(e){toast('Wrong password.');return}
+    const {error}=await sb.from('members').delete().eq('clinic_id',clinic.id).eq('user_id',d.rm);if(error){toast(friendly(error));return}view.confirm=null;await loadTeam();render();toast('Removed from the clinic');return}
   if(d.ntpl){const keep=$('#n-text')?$('#n-text').value:'';const keepT=$('#n-title')?$('#n-title').value:'';view.noteTpl=d.ntpl;
     if(d.ntpl==='rct'){if(!view.rct||!view.rct.canals||view.rct.pid!==p.id){view.rct={pid:p.id};rctSetTooth(p,'')}render();$('#n-text').value=keep;$('#n-title').value='Treatment';return}
     render();const tx=$('#n-text');tx.value=(keep.trim()?keep.trim()+'\n\n':'')+NOTE_TPLS[d.ntpl][1];$('#n-title').value=keepT||'Treatment';tx.focus();return}
