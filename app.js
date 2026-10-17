@@ -300,7 +300,14 @@ function labTab(p){
   <section class="panel"><h3>Lab requests for this patient</h3>
   ${list.length?`<div class="plist">${list.map(l=>`<div class="member"><span style="flex:1;min-width:0"><b>${esc(l.what)}</b>${l.note?' – '+esc(l.note):''}<br><span class="small muted">${fmtDate(l.date)} · ${esc(l.by||'')}${l.status==='done'?' · result: '+esc(l.result||'done'):''}</span></span><span class="pill ${l.status==='done'?'ok':'warn'}">${l.status==='done'?'Delivered':esc(l.stage||'Waiting')}</span>${l.status==='done'&&!ro&&!l.pickedAt?`<button class="btn small primary" data-labpick="${p.id}|${l.id}" type="button">✓ Picked up</button>`:''}${l.pickedAt?'<span class="pill ok">Picked up</span>':''}${l.status==='done'&&!ro&&waLink(p,'x')?`<a class="btn small" target="_blank" rel="noopener" href="${waLink(p,'Hello '+(p.first||'')+', your '+l.what.toLowerCase()+' is ready at our clinic. Please call us to book your visit.')}">Tell patient on WhatsApp</a>`:''}</div>`).join('')}</div>`:'<div class="empty">No lab requests yet.</div>'}</section>`;
 }
-function unitLoginHtml(){return `<form id="unitLoginForm" class="hres" style="display:flex;flex-direction:column;gap:8px"><b>Add a lab or pharmacy login</b>
+function unitLoginHtml(){if(!LOCAL)return `<div class="hres" style="display:flex;flex-direction:column;gap:8px"><b>Add a lab or pharmacy login</b>
+      <p class="small muted" style="margin:0">Each person logs in with their own email and password, on their own computer, and sees only their own list.</p>
+      <ol style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px" class="small">
+        <li>Send them this invite code and the web address of this app:<div class="row" style="margin-top:4px"><span class="invite">${esc(clinic.invite_code||'')}</span><button class="btn small" type="button" data-act="copyCode">Copy code</button></div></li>
+        <li>They open the app, tap <b>Sign up</b> (their email and a password), then choose <b>Join a clinic</b>, type the code and a name such as “City Dental Lab”.</li>
+        <li>Come back here and tick their name under <b>Laboratory staff</b> (or <b>Pharmacy staff</b>) in Clinic &amp; account → Pharmacy and laboratory. <b>Do this straight away</b> – until you tick them they can see everything.</li>
+      </ol></div>`;
+  return `<form id="unitLoginForm" class="hres" style="display:flex;flex-direction:column;gap:8px"><b>Add a lab or pharmacy login</b>
       <p class="small muted" style="margin:0">They log in from their own computer with this username and password and see only their own list – no patient files, no phone numbers.</p>
       <div class="grid2"><label class="f"><span>Name (e.g. the lab's name)</span><input type="text" id="ul-name" required placeholder="e.g. City Dental Lab"></label>
       <label class="f"><span>Department</span><select id="ul-unit"><option value="lab">Laboratory</option><option value="pharmacy">Pharmacy</option></select></label>
