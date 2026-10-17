@@ -459,7 +459,7 @@ const Upd={info:null,shown:false,
     if(j.version!==APP_VERSION)Upd.bar();else Upd.whatsNew()}catch(e){}},
   notes(){const n=(Upd.info&&Upd.info.notes)||[];return n.length?'<ul>'+n.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>':''},
   bar(){if(Upd.shown)return;Upd.shown=true;const d=document.createElement('div');d.className='updbar';d.setAttribute('role','status');
-    d.innerHTML=`<div class="updtxt"><b>A new version of the app is ready</b><span>${esc(Upd.info.date||'')} – save your work, then tap Update.</span></div>
+    d.innerHTML=`<div class="updtxt"><b>A new version of the app is ready</b><span>${esc(Upd.info.date||'')} – your work is saved automatically. Just tap Update now.</span></div>
       <button class="btn small" data-upd="notes">What's new</button><button class="btn small primary" data-upd="go">Update now</button><button class="btn small" data-upd="later" aria-label="Later">Later</button><div class="updnotes" hidden>${Upd.notes()}</div>`;
     document.body.appendChild(d);try{Sound.play('message')}catch(e){}
     d.addEventListener('click',async e=>{const b=e.target.closest('[data-upd]');if(!b)return;const k=b.dataset.upd;
