@@ -7,7 +7,7 @@
 const CONFIG=window.CLINIC_CONFIG||{SUPABASE_URL:'',SUPABASE_ANON_KEY:''};
 const LOCAL=!!window.__LOCAL_DB;
 /* Seller details shown on the Activation screen. Fill these in (keep the quote marks). */
-const APP_VERSION='17 Oct 2026 · phone-style settings, website look';
+const APP_VERSION='17 Oct 2026 · access control, app colour';
 const SELLER={name:'',whatsapp:'03113124533',price:'Rs 25,000'};
 
 const $=s=>document.querySelector(s);
@@ -224,10 +224,10 @@ function applyBranding(){
   if(bg==='photo'&&branding.bgImage)root.style.setProperty('--bgimg',`url("${branding.bgImage}")`);else root.style.removeProperty('--bgimg');
   const th=/^#[0-9a-f]{6}$/i.test(branding.theme||'')?branding.theme:'';
   const names=['--accent','--accent-soft','--side','--side-2','--side-on'];
-  if(th){root.style.setProperty('--accent',th);root.style.setProperty('--accent-soft','color-mix(in srgb,'+th+' 16%,var(--paper))');root.style.setProperty('--side','color-mix(in srgb,'+th+' 5%,#fff)');root.style.setProperty('--side-2','color-mix(in srgb,'+th+' 11%,#fff)');root.style.setProperty('--side-on','color-mix(in srgb,'+th+' 18%,#fff)')}
+  if(th){root.style.setProperty('--accent',th);root.style.setProperty('--accent-soft','color-mix(in srgb,'+th+' 16%,var(--paper))');root.style.setProperty('--side','color-mix(in srgb,'+th+' 52%,#000)');root.style.setProperty('--side-2','color-mix(in srgb,'+th+' 36%,#000)');root.style.setProperty('--side-on','color-mix(in srgb,'+th+' 68%,#000)')}
   else names.forEach(n=>root.style.removeProperty(n));
 }
-const THEMES=[['','Website teal','#2E8577'],['#2b5fa8','Blue','#2b5fa8'],['#5b4aa8','Purple','#5b4aa8'],['#2e7d4f','Green','#2e7d4f'],['#b0446b','Rose','#b0446b'],['#b8651b','Orange','#b8651b'],['#44505a','Slate','#44505a'],['custom','My own colour','']];
+const THEMES=[['','Teal (original)','#1f5f6b'],['#2b5fa8','Blue','#2b5fa8'],['#5b4aa8','Purple','#5b4aa8'],['#2e7d4f','Green','#2e7d4f'],['#b0446b','Rose','#b0446b'],['#b8651b','Orange','#b8651b'],['#44505a','Slate','#44505a'],['custom','My own colour','']];
 async function saveBranding(patch){
   const data=Object.assign({},branding,patch);
   if(brandingId){const {error}=await sb.from('finance').update({data}).eq('id',brandingId);if(error)throw error}
@@ -441,7 +441,7 @@ function helpGo(e){
     return;
   }
   if(e.s==='settings'){view.newRecovery=null;if(isAdmin()||isAcct()){attRows=null;loadAttendance(attDay||today()).then(()=>{if(view.screen==='settings')softRender()})}
-    view.screen='settings';view.setSec='';try{const sp=settingsSplit().secs;const h=(e.h||'').toLowerCase();for(const k in sp){if(h&&sp[k].toLowerCase().includes(h)){view.setSec=k;break}}}catch(_){}view.pid=null;view.confirm=null;view.msg=null;render();loadTeam().then(()=>{if(view.screen==='settings')softRender()});if(appOwner)loadSignupCodes().then(()=>{if(view.screen==='settings')softRender()});
+    view.screen='settings';view.pid=null;view.confirm=null;view.msg=null;render();loadTeam().then(()=>{if(view.screen==='settings')softRender()});if(appOwner)loadSignupCodes().then(()=>{if(view.screen==='settings')softRender()});
     after(()=>helpShowTip(helpHeading(e.h),'Here: '+e.t));return}
   if(e.s==='appts'){view=Object.assign(view,{screen:'appts',pid:null,confirm:null,msg:null,day:view.day||today()});render();refreshAppts();after(()=>helpShowTip(document.querySelector('.main h1')||null,'You are in Appointments.'));return}
   if(e.s==='earn'){view=Object.assign(view,{screen:'earn',pid:null,confirm:null,msg:null});earn.err='';earn.mode='';render();if(earnOpen())loadEarn();after(()=>helpShowTip(document.querySelector('.main h1')||null,'Earnings is PIN protected. Enter your PIN to open it.'));return}
@@ -2179,19 +2179,19 @@ function aboutPanel(){
       <p style="margin:0" class="muted">FDI tooth numbering, BPE codes and dental terms are public clinical standards. All drawings in the app were made for this app.</p>
     </div></details></section>`;
 }
-function settingsParts(){
+function settingsView(){
   const admin=isAdmin();const oldLocal=lsGet('clinicRecords.v1');
   return `
   <header class="top desk-hide"><button class="btn small" data-act="back">← Patients</button>${syncBadge()}</header>
   <h1>Clinic & account</h1>
   <p class="small muted" style="margin:-6px 0 12px">App version: <b>${APP_VERSION}</b></p>
+  ${brandingPanel()}
+  ${ownerCodesPanel()}
+  ${deptPanel()}
+  ${bookingSettingsPanel()}
+  ${soundsPanel()}
   ${msgHtml()}
-<!--SEC:appearance-->${brandingPanel()}
-<!--SEC:sounds-->${soundsPanel()}
-<!--SEC:facility-->${deptPanel()}
-<!--SEC:booking-->${bookingSettingsPanel()}
-<!--SEC:owner-->${ownerCodesPanel()}
-<!--SEC:clinic-->${activationPanel(admin)}
+  ${activationPanel(admin)}
   <form class="panel" id="clinicForm">
     <h3>Clinic details</h3>
     <label class="f"><span>Clinic name</span><input type="text" id="cl-name" value="${esc(clinic.name)}" ${admin?'':'readonly'} required></label>
@@ -2203,7 +2203,7 @@ function settingsParts(){
     <p class="small muted" style="margin:0">Leave empty to use the standard message. These words are filled in for each patient: {name} {clinic} {date} {time} {phone} {dentist}</p>
     ${admin?'<div class="row"><button class="btn primary" type="submit">Save clinic details</button></div>':'<p class="small muted" style="margin:0">Only a clinic admin can change these.</p>'}
   </form>
-  <!--SEC:team-->${LOCAL?addDentistHtml(admin):''}
+  ${LOCAL?addDentistHtml(admin):''}
   ${admin||isAcct()?attendancePanel():''}
   ${LOCAL&&admin?recoveryPanel():''}
   <section class="panel" hidden>
@@ -2227,7 +2227,7 @@ function settingsParts(){
       </span>`:''}
     </div>`}).join('')}</div>
   </section>
-  <!--SEC:account--><form class="panel" id="meForm">
+  <form class="panel" id="meForm">
     <h3>Your account</h3>
     <p class="small muted" style="margin:0">Logged in as ${LOCAL?'username ':''}${esc(user.email)}</p>
     <div class="grid2"><label class="f"><span>Your name on records in this clinic</span><input type="text" id="me-name" value="${esc(me.name)}" required></label>
@@ -2245,7 +2245,7 @@ function settingsParts(){
     <div class="row"><button class="btn small" data-act="onboard">Create or join another clinic</button>
     ${view.confirm==='leave'?`<button class="btn small" data-act="cancelConfirm">Stay</button><button class="btn small danger" data-act="leave">Yes, leave ${esc(clinic.name)}</button>`:`<button class="btn small danger" data-act="askLeave">Leave this clinic</button>`}</div>
   </section>
-  <!--SEC:backup-->${LOCAL?localBackupHtml(admin):''}
+  ${LOCAL?localBackupHtml(admin):''}
   <section class="panel" ${LOCAL?'hidden':''}>
     <h3>Backup</h3>
     <p class="small muted" style="margin:0">Records are stored online and sync automatically. You can also save a copy of all ${db.patients.length} patient records as a file.</p>
@@ -2308,22 +2308,6 @@ function deviceBanner(){if(OWNER_TEST)return '';
   if(dailyBlob&&!backedUpToday())h+=`<div class="msg ${old?'warn':'ok'}"><div class="row" style="justify-content:space-between"><span>${old?(last?'No backup file for over a week. ':'No backup file yet. '):''}Today's backup is ready (${dailyBlob.size>=1e6?(dailyBlob.size/1e6).toFixed(1)+' MB':Math.max(1,Math.round(dailyBlob.size/1e3))+' KB'}).</span><button class="btn small primary" data-act="saveDaily">Save to Files</button></div></div>`;
   else if(LOCAL&&old&&db.patients.length)h+=`<div class="msg warn">${last?'Your last full backup was more than a week ago.':'You have no backup yet.'} Records are only on this device. <button class="linkbtn" data-act="settings">Save a backup</button></div>`;
   return h;
-}
-function settingsSplit(){const parts=settingsParts().split(/<!--SEC:(\w+)-->/);const secs={};for(let i=1;i<parts.length;i+=2)secs[parts[i]]=parts[i+1];return {pre:parts[0],secs}}
-function settingsMenu(){
-  const admin=isAdmin();
-  const L=[['Look',[['appearance','sparkle','Appearance','Colour, background, logo'],['sounds','chat','Sounds','Tones and volume']]],
-    ['Clinic',[['clinic','gear','Clinic details','Name, address, registration, reminders'],['facility','pill','Departments, pharmacy & lab','What you run, who works where'],['booking','calendar','Online booking','Booking page and QR code']]],
-    ['People',[['team','people','Team & attendance','Who works here, login times']].concat(appOwner?[['owner','lock','Owner: clinic codes','Allow new clinics']]:[])],
-    ['You and your data',[['account','gear','Your account','Name, password, clinics'],['backup','doc','Backup & data','Save a copy, delete clinic']]]];
-  return L.map(([h,rows])=>`<p class="small muted" style="margin:14px 0 6px;font-weight:700;text-transform:uppercase;letter-spacing:.04em">${h}</p><div class="setgroup">${rows.map(([k,ic,t,sub])=>`<button class="setrow" type="button" data-setsec="${k}"><span class="setic">${icon(ic)}</span><span class="settx"><b>${t}</b><small>${sub}</small></span><span class="setchev">›</span></button>`).join('')}</div>`).join('');
-}
-const SEC_TITLE={appearance:'Appearance',sounds:'Sounds',facility:'Departments, pharmacy & lab',booking:'Online booking',owner:'Owner: clinic codes',clinic:'Clinic details',team:'Team & attendance',account:'Your account',backup:'Backup & data'};
-function settingsView(){
-  const {pre,secs}=settingsSplit();const k=view.setSec&&secs[view.setSec]!==undefined?view.setSec:'';
-  const top=`<header class="top desk-hide"><button class="btn small" data-act="back">← Patients</button>${syncBadge()}</header>`;
-  if(!k)return `${top}<h1>Settings</h1><p class="small muted" style="margin:-6px 0 4px">App version: <b>${APP_VERSION}</b></p>${msgHtml()}${settingsMenu()}`;
-  return `${top}<button class="setback" type="button" data-setsec="">‹ Settings</button><h1>${SEC_TITLE[k]||'Settings'}</h1>${msgHtml()}${secs[k]}`;
 }
 function activationPanel(admin){
   const lic=clinic.lic||{};
@@ -3406,7 +3390,6 @@ document.addEventListener('click',async e=>{
     view.portalPin={id:pp.id,pin};render();return}
   if(d.act==='ocCopy'){try{await navigator.clipboard.writeText(view.ocNew||'');toast('Code copied')}catch(e){toast('Select the code and copy it')}return}
   if(d.ocdel){const {error}=await sb.rpc('owner_delete_signup_code',{p_code:d.ocdel});if(error){toast(friendly(error));return}await loadSignupCodes();render();return}
-  if(d.setsec!==undefined){view.setSec=d.setsec;view.confirm=null;render();scrollTo(0,0);return}
   if(d.act==='attToggle'){view.attOpen=!view.attOpen;render();return}
   if(d.act==='unitFormToggle'){earn.unitForm=!earn.unitForm;render();return}
   if(d.labpick){const [pid,lid]=d.labpick.split('|');const pp=db.patients.find(x=>x.id===pid),ll=pp&&(pp.labs||[]).find(x=>x.id===lid);if(ll){ll.pickedAt=Date.now();ll.pickedBy=me.name;markDirty(pid);render();toast('Marked as picked up – the lab is told');notifyUnit('lab','Picked up by the clinic: '+ll.what+' ('+labCase(pp).replace(/&middot;/g,'·')+')',pid)}return}
@@ -3512,7 +3495,7 @@ document.addEventListener('click',async e=>{
     case 'askRecovery':view.confirm='newrc';render();break;
     case 'makeRecovery':{const {data,error}=await sb.rpc('new_recovery_code',{p_clinic:clinic.id});if(error){toast(friendly(error));break;}
       view.newRecovery=data;view.confirm=null;clinic.has_recovery=true;const m=memberships.find(x=>x.clinic_id===clinic.id);if(m)m.clinics.has_recovery=true;render();break;}
-    case 'goActivate':view.screen='settings';view.setSec='clinic';view.newRecovery=null;view.confirm=null;view.msg=null;render();setTimeout(()=>{const a=$('#activation');if(a)a.scrollIntoView({block:'start'})},50);break;
+    case 'goActivate':view.screen='settings';view.newRecovery=null;view.confirm=null;view.msg=null;render();setTimeout(()=>{const a=$('#activation');if(a)a.scrollIntoView({block:'start'})},50);break;
     case 'copyClinicCode':{const c=clinic.clinic_code;const sel=()=>{const r=document.createRange();r.selectNodeContents($('#ccode'));const s=getSelection();s.removeAllRanges();s.addRange(r);toast('Code selected – copy it')};
       try{navigator.clipboard.writeText(c).then(()=>toast('Clinic code copied'),sel)}catch(err){sel()}break;}
     case 'askWipe':view.confirm='wipe';render();break;
@@ -3569,7 +3552,7 @@ document.addEventListener('click',async e=>{
     case 'back':if(view.screen==='patient'&&view.backTo==='appts'){view=Object.assign(view,{screen:'appts',pid:null,confirm:null});render();refreshAppts();break;}
       if(view.screen==='patient'&&(view.backTo==='aes'||isAes(P()))){view=Object.assign(view,{screen:'aes',pid:null,tab:'details',tooth:null,confirm:null,addItem:null,msg:null});render();break;}
       view=Object.assign(view,{screen:memberships.length?'list':'onboard',pid:null,tab:'details',tooth:null,confirm:null,addItem:null,msg:null});render();break;
-    case 'settings':view.setSec='';view.newRecovery=null;if(isAdmin()||isAcct()){attRows=null;loadAttendance(attDay||today()).then(()=>{if(view.screen==='settings')softRender()})}if(LOCAL){snapList=null;window.__LOCAL_DB.listSnapshots().then(l=>{snapList=l;if(view.screen==='settings')softRender()})}view.screen='settings';view.confirm=null;view.msg=null;render();loadTeam().then(()=>{if(view.screen==='settings')softRender()});if(appOwner)loadSignupCodes().then(()=>{if(view.screen==='settings')softRender()});break;
+    case 'settings':view.newRecovery=null;if(isAdmin()||isAcct()){attRows=null;loadAttendance(attDay||today()).then(()=>{if(view.screen==='settings')softRender()})}if(LOCAL){snapList=null;window.__LOCAL_DB.listSnapshots().then(l=>{snapList=l;if(view.screen==='settings')softRender()})}view.screen='settings';view.confirm=null;view.msg=null;render();loadTeam().then(()=>{if(view.screen==='settings')softRender()});if(appOwner)loadSignupCodes().then(()=>{if(view.screen==='settings')softRender()});break;
     case 'onboard':view.screen='onboard';view.msg=null;render();break;
     case 'paperPatient':{const np=blankPatient();np.paperEntry=true;if(view.impSec==='aes')np.kind='aesthetic';db.patients.push(np);markDirty(np.id);view.impOpen=false;view=Object.assign(view,{screen:'patient',pid:np.id,tab:'details',tooth:null,q:'',confirm:null});render();const f=$('#f-first');if(f){f.focus();f.select()}break;}
     case 'paperDone':{const p=P();if(!p)break;if(!(p.first||'').trim()){toast('Write the patient\'s name first.');view.tab='details';render();break}delete p.paperEntry;save();render();toast('Saved – now a normal patient');break;}
