@@ -259,7 +259,8 @@ async function notifyUnit(unit,text,patientId){
 const LAB_KINDS=['Blood test','Biopsy / histopathology','Culture & sensitivity','X-ray report / OPG reading','Crown / bridge / denture (dental lab)','Other'];
 const LAB_STAGES=['Received','In progress','Ready for try-in','Quality check','Delivered'];
 const waLink=(p,text)=>{let n=String(p.phone||'').replace(/[^\d]/g,'');if(!n)return '';if(n.startsWith('00'))n=n.slice(2);else if(n.startsWith('0'))n='92'+n.slice(1);return 'https://wa.me/'+n+'?text='+encodeURIComponent(text)};
-async function labTell(pp,ll,text){const to=ll.byId&&ll.byId!==user.id?ll.byId:(ll.byId?null:'all');if(to){try{await sendMessage(to,text,{kind:'lab',patient_id:pp.id})}catch(e){}}}
+async function labTell(pp,ll,text){const skip=new Set([user.id].concat(staffIds('lab'),staffIds('pharmacy')));const to=new Set((team||[]).map(t=>t.user_id).filter(id=>id&&!skip.has(id)));if(ll.byId&&ll.byId!==user.id)to.add(ll.byId);for(const id of to){try{await sendMessage(id,text,{kind:'lab',patient_id:pp.id})}catch(e){}}}
+const labCase=p=>{const ini=((p.first||'').slice(0,1)+(p.last||'').slice(0,1)).toUpperCase();const a=p.dob?age(p.dob):'';return esc('Patient '+ini+(a!==''?' · '+a+' yrs':'')+(p.sex==='F'?' · F':p.sex==='M'?' · M':''))};
 function pName(p){return esc((p.first||'')+' '+(p.last||''))}
 const isPS=()=>pharmOn()&&!!me&&staffIds('pharmacy').includes(me.user_id),isLS=()=>labOn()&&!!me&&staffIds('lab').includes(me.user_id);
 const pharmOnly=()=>!!me&&!isAdmin()&&(isPS()||isLS());
@@ -282,13 +283,13 @@ function labView(){
   return `${clockMini()}<header class="top"><div style="min-width:0"><h1>Laboratory</h1><div class="sub">${w.length} request${w.length===1?'':'s'} waiting ${syncBadge()}</div></div></header>
   ${homeNav('lab')}
   <section class="panel"><h3>Waiting for the lab</h3>
-  ${w.length?w.map(({p,l})=>`<div class="hres"><div class="row"><b>${pName(p)}</b><span class="spacer"></span><span class="small muted">${fmtDate(l.date)} · ${esc(l.by||'')}</span></div>
+  ${w.length?w.map(({p,l})=>`<div class="hres"><div class="row"><b>${pharmOnly()?labCase(p):pName(p)}</b><span class="spacer"></span><span class="small muted">${fmtDate(l.date)} · ${esc(l.by||'')}</span></div>
     <div><b>${esc(l.what)}</b>${l.note?' – '+esc(l.note):''}</div>
     <label class="f"><span>Stage – the clinic is told when you change it</span><select data-labstage="${p.id}|${l.id}">${LAB_STAGES.slice(0,4).map(x=>`<option ${(l.stage||'Received')===x?'selected':''}>${x}</option>`).join('')}</select></label>
     <label class="f"><span>Result / note for the dentist</span><input type="text" data-labres="${l.id}" placeholder="e.g. Hb 13.2 – normal, report attached in X-rays"></label>
     <div class="row"><button class="btn small primary" data-labdone="${p.id}|${l.id}">✓ Delivered / done</button>${pharmOnly()?'':`<button class="btn small" data-open="${p.id}">Open patient</button>`}</div></div>`).join(''):'<div class="empty">No lab requests waiting.</div>'}
   </section>
-  ${g.length?`<section class="panel"><h3>Recently done</h3><div class="plist">${g.map(({p,l})=>`<div class="member"><span style="flex:1;min-width:0"><b>${pName(p)}</b> · ${esc(l.what)}<br><span class="small muted">${l.result?esc(l.result)+' · ':''}done ${fmtDate(dayOf(l.doneAt))} by ${esc(l.doneBy||'')}</span></span></div>`).join('')}</div></section>`:''}`;
+  ${g.length?`<section class="panel"><h3>Recently done</h3><div class="plist">${g.map(({p,l})=>`<div class="member"><span style="flex:1;min-width:0"><b>${pharmOnly()?labCase(p):pName(p)}</b> · ${esc(l.what)}<br><span class="small muted">${l.result?esc(l.result)+' · ':''}done ${fmtDate(dayOf(l.doneAt))} by ${esc(l.doneBy||'')}</span></span></div>`).join('')}</div></section>`:''}`;
 }
 function labTab(p){
   p.labs=p.labs||[];const ro=isAcct()||readOnly();const list=p.labs.slice().sort((a,b)=>(b.at||0)-(a.at||0));
@@ -306,6 +307,12 @@ function unitsPanel(){
     <label class="row small" style="gap:8px"><input type="checkbox" id="unit-pharmacy" ${u.pharmacy?'checked':''} style="width:20px;height:20px"> Pharmacy – sees every new prescription and marks it as given</label>
     <label class="row small" style="gap:8px"><input type="checkbox" id="unit-lab" ${u.lab?'checked':''} style="width:20px;height:20px"> Laboratory – receives lab requests from the dentists</label>
     ${u.pharmacy?staffBox('pharmacy','Pharmacy'):''}${u.lab?staffBox('lab','Laboratory'):''}
+    ${(u.pharmacy||u.lab)?`<form id="unitLoginForm" class="hres" style="display:flex;flex-direction:column;gap:8px"><b>Create a login for pharmacy or lab staff</b>
+      <div class="grid2"><label class="f"><span>Name</span><input type="text" id="ul-name" required placeholder="e.g. Imran (pharmacy)"></label>
+      <label class="f"><span>Department</span><select id="ul-unit">${u.pharmacy?'<option value="pharmacy">Pharmacy</option>':''}${u.lab?'<option value="lab">Laboratory</option>':''}</select></label>
+      <label class="f"><span>Username</span><input type="text" id="ul-user" required autocapitalize="off" autocorrect="off" autocomplete="off" placeholder="e.g. pharmacy1"></label>
+      <label class="f"><span>Password (at least 8 characters)</span><input type="password" id="ul-pw" required minlength="8" autocomplete="new-password"></label></div>
+      <div class="row"><button class="btn primary" type="submit">Create login</button></div></form>`:''}
     ${(u.pharmacy||u.lab)?'<p class="small muted" style="margin:0">Give each pharmacy or lab person their own login (Team below, role <b>Dentist</b>) and tick them above. A ticked pharmacy person sees only the prescription list: no patient files, no phone numbers, no other menus.</p>':''}</div>`;
 }
 function deptPanel(){
@@ -3150,6 +3157,13 @@ document.addEventListener('submit',async e=>{
       await window.__LOCAL_DB.recover(v('rv-user'),v('rv-code'),$('#rv-pw').value);
       view.email=v('rv-user').toLowerCase();view.rvCode='';view.showRecover=false;view.msg={t:'ok',m:'Password changed. Log in with your new password.'};render();return;
     }
+    if(f.id==='unitLoginForm'){
+      const unit=$('#ul-unit').value,nm=v('ul-name');
+      const {error}=await sb.rpc('add_dentist',{p_clinic:clinic.id,p_name:nm,p_username:v('ul-user'),p_password:$('#ul-pw').value,p_role:'dentist',p_pmdc:''});if(error)throw error;
+      await loadTeam();const nu=team.slice().reverse().find(t=>t.name===nm&&t.user_id!==user.id);
+      if(nu){const key=unit==='pharmacy'?'pharmaStaff':'labStaff';await deptSave({[key]:staffIds(unit).concat([nu.user_id])})}
+      toast(nm+' added. Username: '+v('ul-user').toLowerCase()+' – sees only the '+(unit==='pharmacy'?'pharmacy':'lab')+' list.');
+    }
     if(f.id==='addDentistForm'){
       const {error}=await sb.rpc('add_dentist',{p_clinic:clinic.id,p_name:v('ad-name'),p_username:v('ad-user'),p_password:$('#ad-pw').value,p_role:$('#ad-role').value,p_pmdc:v('ad-pmdc')});if(error)throw error;
       await loadTeam();toast(v('ad-name')+' added. Username: '+v('ad-user').toLowerCase());
@@ -3286,7 +3300,7 @@ document.addEventListener('click',async e=>{
   if(d.act==='earnCancelSet'){earn.mode='';earn.err='';render();return}
   if(d.rxgiven){const [pid,rid]=d.rxgiven.split('|');const pp=db.patients.find(x=>x.id===pid),rr=pp&&(pp.rx||[]).find(x=>x.id===rid);if(rr){rr.pharm={status:'given',by:me.name,at:Date.now()};markDirty(pid);render();toast('Marked as given')}return}
   if(d.labdone){const [pid,lid]=d.labdone.split('|');const pp=db.patients.find(x=>x.id===pid),ll=pp&&(pp.labs||[]).find(x=>x.id===lid);if(ll){const i=document.querySelector('[data-labres="'+lid+'"]');ll.status='done';ll.stage='Delivered';ll.result=i?i.value.trim():'';ll.doneBy=me.name;ll.doneAt=Date.now();markDirty(pid);render();toast('Marked as done');try{await labTell(pp,ll,'Delivered by the lab: '+ll.what+' for '+pp.first+' '+pp.last+(ll.result?' – '+ll.result:''))}catch(e){}}return}
-  if(d.act==='labAdd'){const pp=P();if(!pp)return;const what=$('#lab-what').value,note=($('#lab-note').value||'').trim();const l={id:uid(),what,note,date:today(),at:Date.now(),by:me.name,byId:user.id,status:'requested'};pp.labs=pp.labs||[];pp.labs.push(l);save();render();toast('Sent to the lab');notifyUnit('lab','Lab request for '+pp.first+' '+pp.last+': '+what+(note?' – '+note:''),pp.id);return}
+  if(d.act==='labAdd'){const pp=P();if(!pp)return;const what=$('#lab-what').value,note=($('#lab-note').value||'').trim();const l={id:uid(),what,note,date:today(),at:Date.now(),by:me.name,byId:user.id,status:'requested'};pp.labs=pp.labs||[];pp.labs.push(l);save();render();toast('Sent to the lab');notifyUnit('lab','Lab request for '+labCase(pp).replace(/&middot;/g,'·')+': '+what+(note?' – '+note:''),pp.id);return}
   if(d.act==='orthoSuggest'){const pp=P();if(!pp)return;const io=orInterpret(pp);const L=[];const x=(k)=>pp.ortho&&pp.ortho[k];
     const anb=orn(pp,'anb')!=null?orn(pp,'anb'):(orn(pp,'sna')!=null&&orn(pp,'snb')!=null?orn(pp,'sna')-orn(pp,'snb'):null);
     if(anb!=null)L.push('Skeletal Class '+(anb>4?'II':anb<0?'III':'I'));const oj=orn(pp,'overjet'),ob=orn(pp,'overbite');if(oj!=null&&oj>4)L.push('Increased overjet');if(oj!=null&&oj<0)L.push('Reverse overjet');if(ob!=null&&ob>4)L.push('Deep bite');if(ob!=null&&ob<0)L.push('Anterior open bite');
