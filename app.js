@@ -7,7 +7,7 @@
 const CONFIG=window.CLINIC_CONFIG||{SUPABASE_URL:'',SUPABASE_ANON_KEY:''};
 const LOCAL=!!window.__LOCAL_DB;
 /* Seller details shown on the Activation screen. Fill these in (keep the quote marks). */
-const APP_VERSION='17 Oct 2026 · page colour, pharmacy and lab';
+const APP_VERSION='17 Oct 2026 · orthodontic department, pharmacy privacy';
 const SELLER={name:'',whatsapp:'03113124533',price:'Rs 25,000'};
 
 const $=s=>document.querySelector(s);
@@ -257,7 +257,12 @@ async function notifyUnit(unit,text,patientId){
   for(const id of ids){try{await sendMessage(id,text,{kind:unit==='pharmacy'?'rx':'lab',patient_id:patientId})}catch(e){}}
 }
 const LAB_KINDS=['Blood test','Biopsy / histopathology','Culture & sensitivity','X-ray report / OPG reading','Crown / bridge / denture (dental lab)','Other'];
+const LAB_STAGES=['Received','In progress','Ready for try-in','Quality check','Delivered'];
+const waLink=(p,text)=>{let n=String(p.phone||'').replace(/[^\d]/g,'');if(!n)return '';if(n.startsWith('00'))n=n.slice(2);else if(n.startsWith('0'))n='92'+n.slice(1);return 'https://wa.me/'+n+'?text='+encodeURIComponent(text)};
+async function labTell(pp,ll,text){const to=ll.byId&&ll.byId!==user.id?ll.byId:(ll.byId?null:'all');if(to){try{await sendMessage(to,text,{kind:'lab',patient_id:pp.id})}catch(e){}}}
 function pName(p){return esc((p.first||'')+' '+(p.last||''))}
+const isPS=()=>pharmOn()&&!!me&&staffIds('pharmacy').includes(me.user_id),isLS=()=>labOn()&&!!me&&staffIds('lab').includes(me.user_id);
+const pharmOnly=()=>!!me&&!isAdmin()&&(isPS()||isLS());
 function pharmView(){
   const w=rxWaiting(),g=rxGiven();
   return `${clockMini()}<header class="top"><div style="min-width:0"><h1>Pharmacy</h1><div class="sub">${w.length} prescription${w.length===1?'':'s'} waiting ${syncBadge()}</div></div></header>
@@ -268,7 +273,7 @@ function pharmView(){
     <ul style="margin:0;padding-left:18px">${r.items.map(it=>`<li><b>${esc(it.name)}</b>${it.dose?' – '+esc(it.dose):''}${it.days?' · '+esc(it.days)+(/^\d+$/.test(String(it.days).trim())?' days':''):''}${it.note?' · '+esc(it.note):''}</li>`).join('')}</ul>
     ${r.advice?`<div class="small">${esc(r.advice)}</div>`:''}
     ${penAllergy(p)?'<div class="msg err" style="margin:0">Penicillin allergy – check before giving.</div>':''}
-    <div class="row"><button class="btn small primary" data-rxgiven="${p.id}|${r.id}">✓ Mark as given</button><button class="btn small" data-open="${p.id}">Open patient</button></div></div>`).join(''):'<div class="empty">No prescriptions waiting.</div>'}
+    <div class="row"><button class="btn small primary" data-rxgiven="${p.id}|${r.id}">✓ Mark as given</button>${pharmOnly()?`<button class="btn small" data-pxprint="${p.id}|${r.id}">Print</button>`:`<button class="btn small" data-pxprint="${p.id}|${r.id}">Print</button><button class="btn small" data-open="${p.id}">Open patient</button>`}</div></div>`).join(''):'<div class="empty">No prescriptions waiting.</div>'}
   </section>
   ${g.length?`<section class="panel"><h3>Recently given</h3><div class="plist">${g.map(({p,r})=>`<div class="member"><span style="flex:1;min-width:0"><b>${pName(p)}</b><br><span class="small muted">${r.items.map(i=>esc(i.name)).join(', ')} · given ${fmtDate(dayOf(r.pharm.at))} by ${esc(r.pharm.by||'')}</span></span></div>`).join('')}</div></section>`:''}`;
 }
@@ -279,8 +284,9 @@ function labView(){
   <section class="panel"><h3>Waiting for the lab</h3>
   ${w.length?w.map(({p,l})=>`<div class="hres"><div class="row"><b>${pName(p)}</b><span class="spacer"></span><span class="small muted">${fmtDate(l.date)} · ${esc(l.by||'')}</span></div>
     <div><b>${esc(l.what)}</b>${l.note?' – '+esc(l.note):''}</div>
+    <label class="f"><span>Stage – the clinic is told when you change it</span><select data-labstage="${p.id}|${l.id}">${LAB_STAGES.slice(0,4).map(x=>`<option ${(l.stage||'Received')===x?'selected':''}>${x}</option>`).join('')}</select></label>
     <label class="f"><span>Result / note for the dentist</span><input type="text" data-labres="${l.id}" placeholder="e.g. Hb 13.2 – normal, report attached in X-rays"></label>
-    <div class="row"><button class="btn small primary" data-labdone="${p.id}|${l.id}">✓ Mark as done</button><button class="btn small" data-open="${p.id}">Open patient</button></div></div>`).join(''):'<div class="empty">No lab requests waiting.</div>'}
+    <div class="row"><button class="btn small primary" data-labdone="${p.id}|${l.id}">✓ Delivered / done</button>${pharmOnly()?'':`<button class="btn small" data-open="${p.id}">Open patient</button>`}</div></div>`).join(''):'<div class="empty">No lab requests waiting.</div>'}
   </section>
   ${g.length?`<section class="panel"><h3>Recently done</h3><div class="plist">${g.map(({p,l})=>`<div class="member"><span style="flex:1;min-width:0"><b>${pName(p)}</b> · ${esc(l.what)}<br><span class="small muted">${l.result?esc(l.result)+' · ':''}done ${fmtDate(dayOf(l.doneAt))} by ${esc(l.doneBy||'')}</span></span></div>`).join('')}</div></section>`:''}`;
 }
@@ -291,7 +297,7 @@ function labTab(p){
     <label class="f"><span>Details (optional)</span><input type="text" id="lab-note" placeholder="e.g. HbA1c before extraction · crown shade A2, tooth 36"></label>
     <div class="row"><button class="btn primary" data-act="labAdd">Send to the lab</button>${(staffIds('lab').length)?'':'<span class="small muted">The lab sees it in its list.</span>'}</div></section>`}
   <section class="panel"><h3>Lab requests for this patient</h3>
-  ${list.length?`<div class="plist">${list.map(l=>`<div class="member"><span style="flex:1;min-width:0"><b>${esc(l.what)}</b>${l.note?' – '+esc(l.note):''}<br><span class="small muted">${fmtDate(l.date)} · ${esc(l.by||'')}${l.status==='done'?' · result: '+esc(l.result||'done'):''}</span></span><span class="pill ${l.status==='done'?'ok':'warn'}">${l.status==='done'?'Done':'Waiting'}</span></div>`).join('')}</div>`:'<div class="empty">No lab requests yet.</div>'}</section>`;
+  ${list.length?`<div class="plist">${list.map(l=>`<div class="member"><span style="flex:1;min-width:0"><b>${esc(l.what)}</b>${l.note?' – '+esc(l.note):''}<br><span class="small muted">${fmtDate(l.date)} · ${esc(l.by||'')}${l.status==='done'?' · result: '+esc(l.result||'done'):''}</span></span><span class="pill ${l.status==='done'?'ok':'warn'}">${l.status==='done'?'Delivered':esc(l.stage||'Waiting')}</span>${l.status==='done'&&!ro&&waLink(p,'x')?`<a class="btn small" target="_blank" rel="noopener" href="${waLink(p,'Hello '+(p.first||'')+', your '+l.what.toLowerCase()+' is ready at our clinic. Please call us to book your visit.')}">Tell patient on WhatsApp</a>`:''}</div>`).join('')}</div>`:'<div class="empty">No lab requests yet.</div>'}</section>`;
 }
 function unitsPanel(){
   const u=unitsOf();const mem=team||[];
@@ -300,7 +306,7 @@ function unitsPanel(){
     <label class="row small" style="gap:8px"><input type="checkbox" id="unit-pharmacy" ${u.pharmacy?'checked':''} style="width:20px;height:20px"> Pharmacy – sees every new prescription and marks it as given</label>
     <label class="row small" style="gap:8px"><input type="checkbox" id="unit-lab" ${u.lab?'checked':''} style="width:20px;height:20px"> Laboratory – receives lab requests from the dentists</label>
     ${u.pharmacy?staffBox('pharmacy','Pharmacy'):''}${u.lab?staffBox('lab','Laboratory'):''}
-    ${(u.pharmacy||u.lab)?'<p class="small muted" style="margin:0">Give pharmacy and lab staff a login with the role <b>Dentist</b> (Team below) so they can mark items as given or done.</p>':''}</div>`;
+    ${(u.pharmacy||u.lab)?'<p class="small muted" style="margin:0">Give each pharmacy or lab person their own login (Team below, role <b>Dentist</b>) and tick them above. A ticked pharmacy person sees only the prescription list: no patient files, no phone numbers, no other menus.</p>':''}</div>`;
 }
 function deptPanel(){
   if(!isAdmin()||brandingErr==='needsql')return '';
@@ -345,12 +351,13 @@ const HELP=[
  {t:'X-rays and photos',k:'xray x-ray opg photo scan camera upload picture radiograph',p:'Open a patient › X-rays',tab:'xrays'},
  {t:'Write and print a prescription',k:'prescription antibiotic painkiller medicine print rx drug dose',p:'Open a patient › Prescription',tab:'rx'},
  {t:'Book an appointment for a patient',k:'book appointment patient reminder whatsapp sms visit next',p:'Open a patient › Appointments',tab:'appts'},
+ {t:'Orthodontic assessment, cephalometrics and aligner scanner',k:'ortho orthodontic orthodontics braces aligner clear aligner scanner intraoral scan cephalometric ceph overjet overbite crowding class molar retainer devices',p:'Open a patient › Ortho',tab:'ortho'},
  {t:'Pharmacy – prescriptions waiting',k:'pharmacy pharmacist prescription medicine given dispense notification',p:'Pharmacy',s:'pharm'},
  {t:'Laboratory – requests and results',k:'lab laboratory blood test biopsy result request report',p:'Laboratory',s:'lab'},
  {t:'Turn on Pharmacy or Lab and choose who gets notified',k:'pharmacy lab laboratory staff notify notification unit attach hospital',p:'Clinic & account › Facility type & departments',s:'settings',h:'Facility type',a:1},
  {t:'Aesthetics patients',k:'aesthetic aesthetics botox laser prp cosmetic',p:'Aesthetics',s:'aes'}
 ];
-const TAB_LABEL={mh:'Medical history',chart:'Chart',plan:'Treatment plan',pay:'Payments',notes:'Clinical notes',xrays:'X-rays',rx:'Prescription',appts:'Appointments'};
+const TAB_LABEL={ortho:'Ortho',mh:'Medical history',chart:'Chart',plan:'Treatment plan',pay:'Payments',notes:'Clinical notes',xrays:'X-rays',rx:'Prescription',appts:'Appointments'};
 function helpFind(q){
   const w=q.toLowerCase().split(/[^a-z0-9’']+/).filter(x=>x.length>1);if(!w.length)return [];
   return HELP.filter(e=>!e.a||isAdmin()).map(e=>{const hay=(e.t+' '+e.k+' '+e.p).toLowerCase();let sc=0;
@@ -1048,7 +1055,7 @@ async function refreshAppts(){
   }catch(e){toast(friendly(e))}
   apptsLoading=false;softRender();
 }
-function homeNav(active){return `<nav class="tabs homenav desk-hide" role="tablist"><button class="tab" role="tab" aria-selected="${active==='list'}" data-home="list">Patients</button><button class="tab" role="tab" aria-selected="${active==='aes'}" data-home="aes">Aesthetics</button><button class="tab" role="tab" aria-selected="${active==='appts'}" data-home="appts">Appointments</button>${pharmOn()?`<button class="tab" role="tab" aria-selected="${active==='pharm'}" data-home="pharm">Pharmacy${pharmBadge()?' ('+pharmBadge()+')':''}</button>`:''}${labOn()?`<button class="tab" role="tab" aria-selected="${active==='lab'}" data-home="lab">Lab${labBadge()?' ('+labBadge()+')':''}</button>`:''}<button class="tab" role="tab" aria-selected="${active==='msgs'}" data-home="msgs">Messages${unreadCount()?' ('+unreadCount()+')':''}</button>${isAdmin()?`<button class="tab" role="tab" aria-selected="${active==='earn'}" data-home="earn">Earnings</button>`:''}</nav>`}
+function homeNav(active){return `<nav class="tabs homenav desk-hide" role="tablist">${pharmOnly()?'':`<button class="tab" role="tab" aria-selected="${active==='list'}" data-home="list">Patients</button><button class="tab" role="tab" aria-selected="${active==='aes'}" data-home="aes">Aesthetics</button><button class="tab" role="tab" aria-selected="${active==='appts'}" data-home="appts">Appointments</button>`}${pharmOn()&&(!pharmOnly()||isPS())?`<button class="tab" role="tab" aria-selected="${active==='pharm'}" data-home="pharm">Pharmacy${pharmBadge()?' ('+pharmBadge()+')':''}</button>`:''}${labOn()&&(!pharmOnly()||isLS())?`<button class="tab" role="tab" aria-selected="${active==='lab'}" data-home="lab">Lab${labBadge()?' ('+labBadge()+')':''}</button>`:''}<button class="tab" role="tab" aria-selected="${active==='msgs'}" data-home="msgs">Messages${unreadCount()?' ('+unreadCount()+')':''}</button>${isAdmin()?`<button class="tab" role="tab" aria-selected="${active==='earn'}" data-home="earn">Earnings</button>`:''}</nav>`}
 /* Team messages on this device: "patient arrived" notes and messages between staff. */
 let msgs=[];
 async function loadMessages(){if(!clinic)return;const {data}=await sb.from('messages').select('*').eq('clinic_id',clinic.id).order('created_at');msgs=(data||[]).slice(-300)}
@@ -1497,6 +1504,7 @@ function mhStatus(p){
 
 /* ---------- screens ---------- */
 function render(){
+  if(pharmOnly()&&['list','patient','aes','earn','appts','pharm','lab'].includes(view.screen)&&!(view.screen==='pharm'&&isPS())&&!(view.screen==='lab'&&isLS()))view.screen=isPS()?'pharm':'lab';
   const app=$('#app');const s=view.screen;
   const v={config:configView,offline:offlineView,loading:loadingView,error:errorView,auth:authView,newpw:newpwView,onboard:onboardView,recovery:recoveryView,welcome:welcomeView,list:listView,pharm:pharmView,lab:labView,appts:apptsView,msgs:msgsView,settings:settingsView,patient:patientView,earn:earningsView,owner:ownerView,aes:aesView}[s]||loadingView;
   const inShell=['list','appts','msgs','settings','patient','earn','aes','pharm','lab'].includes(s)&&clinic&&me;
@@ -1925,10 +1933,10 @@ function shell(content){
     ${clockHtml()}
     <div class="side-clinic"><b>${esc(clinic.name)}</b>${lic&&lic.state==='trial'?`<span>Free trial · ${lic.daysLeft} day${lic.daysLeft>1?'s':''} left</span>`:lic&&lic.state==='expired'?'<span class="bad">Trial ended · read-only</span>':clinic.address?`<span>${esc(clinic.address)}</span>`:''}</div>
     <nav class="side-nav">
-      <button class="${active==='list'?'on':''}" data-home="list">${icon('people')}<span>Patients</span><em>${db.patients.filter(p=>!isAes(p)).length}</em></button>
-      <button class="${active==='aes'?'on':''}" data-home="aes">${icon('sparkle')}<span>Aesthetics</span><em>${db.patients.filter(isAes).length}</em></button>
-      <button class="${active==='appts'?'on':''}" data-home="appts">${icon('calendar')}<span>Appointments</span>${booking.waiting.length?`<em class="badge" title="Online bookings waiting">${booking.waiting.length}</em>`:''}</button>
-      ${pharmOn()?`<button class="${active==='pharm'?'on':''}" data-home="pharm">${icon('pill')}<span>Pharmacy</span>${pharmBadge()?`<em class="badge">${pharmBadge()}</em>`:''}</button>`:''}${labOn()?`<button class="${active==='lab'?'on':''}" data-home="lab">${icon('flask')}<span>Laboratory</span>${labBadge()?`<em class="badge">${labBadge()}</em>`:''}</button>`:''}
+      ${pharmOnly()?'':`<button class="${active==='list'?'on':''}" data-home="list">${icon('people')}<span>Patients</span><em>${db.patients.filter(p=>!isAes(p)).length}</em></button>
+      <button class="${active==='aes'?'on':''}" data-home="aes">${icon('sparkle')}<span>Aesthetics</span><em>${db.patients.filter(isAes).length}</em></button>`}
+      ${pharmOnly()?'':`<button class="${active==='appts'?'on':''}" data-home="appts">${icon('calendar')}<span>Appointments</span>${booking.waiting.length?`<em class="badge" title="Online bookings waiting">${booking.waiting.length}</em>`:''}</button>`}
+      ${pharmOn()&&(!pharmOnly()||isPS())?`<button class="${active==='pharm'?'on':''}" data-home="pharm">${icon('pill')}<span>Pharmacy</span>${pharmBadge()?`<em class="badge">${pharmBadge()}</em>`:''}</button>`:''}${labOn()&&(!pharmOnly()||isLS())?`<button class="${active==='lab'?'on':''}" data-home="lab">${icon('flask')}<span>Laboratory</span>${labBadge()?`<em class="badge">${labBadge()}</em>`:''}</button>`:''}
       <button class="${active==='msgs'?'on':''}" data-home="msgs">${icon('chat')}<span>Messages</span>${un?`<em class="badge">${un}</em>`:''}</button>
       ${isAdmin()?`<button class="${active==='earn'?'on':''}" data-home="earn">${icon('money')}<span>Earnings</span>${earnOpen()?'':`<em class="lockmark" title="PIN protected">${icon('lock')}</em>`}</button>`:''}
       <button class="${active==='settings'?'on':''}" data-act="settings">${icon('gear')}<span>Clinic &amp; account</span></button>
@@ -2082,7 +2090,7 @@ function listView(sec){
   </header>
   ${homeNav(AES?'aes':'list')}
   ${deviceBanner()}
-  ${!AES&&deptList().length?`<div class="chips deptf"><button type="button" class="chip ${!view.dept?'on':''}" data-deptf="">All departments</button>${deptList().map(n=>`<button type="button" class="chip ${view.dept===n?'on':''}" data-deptf="${esc(n)}">${esc(n)}</button>`).join('')}</div>`:''}
+  ${!AES&&deptList().length?`<div class="deptbox"><button type="button" class="btn small deptbtn" data-act="deptToggle" aria-expanded="${!!view.deptOpen}">Departments${view.dept?': '+esc(view.dept):''} ${view.deptOpen?'▴':'▾'}</button>${view.deptOpen?`<div class="chips deptf"><button type="button" class="chip ${!view.dept?'on':''}" data-deptf="">All departments</button>${deptList().map(n=>`<button type="button" class="chip ${view.dept===n?'on':''}" data-deptf="${esc(n)}">${esc(n)}</button>`).join('')}</div>`:''}</div>`:''}
   <div class="row">
     <input type="search" id="search" placeholder="${AES?'Search aesthetic patients – name, phone, CNIC':'Search name, phone, CNIC or file no.'}" value="${esc(view.q)}" style="flex:1;min-width:0">
     ${isAcct()?'':`<button class="btn" data-act="impOpen" data-sec="${AES?'aes':''}" ${readOnly()?'disabled':''}>+ Old patient</button><button class="btn primary" data-act="newPatient" data-sec="${AES?'aes':''}" ${readOnly()?'disabled':''}>+ New ${AES?'aesthetic ':''}patient</button>`}
@@ -2306,6 +2314,116 @@ function localBackupHtml(admin){
     ${view.confirm==='restore'?`<div class="confirm">Replace ALL records on this device with the backup of ${esc(view.restoreInfo||'')}? Everyone is logged out afterwards.<span class="spacer"></span><button class="btn small" data-act="cancelConfirm">Cancel</button><button class="btn small danger" data-act="doRestore">Replace</button></div>`:''}
   </section>`;
 }
+
+/* ---- Orthodontic department: assessment, records checklist, cephalometrics, plan, digital devices, visits ---- */
+const isOrtho=p=>!!p&&!isAes(p)&&(!!p.orthoOn||!!p.ortho&&Object.keys(p.ortho).length>0||/orthodon/i.test(p.dept||''));
+const OR_RECORDS=[['rec_consent','Consent signed'],['rec_mh','Medical history reviewed'],['rec_pho_e','Extraoral photos (frontal, profile, smile)'],['rec_pho_i','Intraoral photos (5 views)'],['rec_opg','OPG (panoramic X-ray)'],['rec_ceph','Lateral cephalogram'],['rec_cbct','CBCT (only when needed)'],['rec_models','Study models or intraoral scan'],['rec_bite','Bite registration'],['rec_perio','Gums and decay treated first'],['rec_fee','Plan, fee and duration explained']];
+const OR_HABITS=[['h_thumb','Thumb / finger sucking'],['h_mouth','Mouth breathing'],['h_tongue','Tongue thrust'],['h_nail','Nail / lip biting'],['h_brux','Grinding (bruxism)'],['h_bottle','Prolonged bottle / dummy']];
+const OR_CEPH=[['sna','SNA','°',82,2],['snb','SNB','°',80,2],['anb','ANB','°',2,2],['wits','Wits','mm',0,2],['fma','FMA','°',25,3],['sngogn','SN–GoGn','°',32,4],['u1sn','U1–SN','°',103,5],['impa','IMPA','°',90,5],['interinc','Interincisal angle','°',131,6],['ulE','Upper lip to E-plane','mm',-4,2],['llE','Lower lip to E-plane','mm',-2,2]];
+const OR_APPL=['Fixed metal brackets','Fixed ceramic (aesthetic) brackets','Self-ligating brackets','Lingual braces','Clear aligners','Functional appliance','Expansion appliance','Headgear / face mask','Mini-implants (TADs)','Retainer only'];
+const OR_DEVICES=[['d_scan','Intraoral scanner (digital impression)'],['d_print','Desktop 3D printer (models, aligner moulds, bonding trays)'],['d_thermo','Thermoforming (vacuum) machine'],['d_cbct','CBCT scan'],['d_ceph','Digital cephalometric analysis software'],['d_plan','Aligner / virtual set-up planning software'],['d_stl','Digital study models (STL files)'],['d_face','Facial / 3D photo scanner'],['d_idb','Indirect bonding trays'],['d_tad','Mini-implant (TAD) driver kit'],['d_pbm','Low-level laser (photobiomodulation)'],['d_vib','Vibration device (faster tooth movement)'],['d_piezo','Piezo-surgery (piezocision / micro-osteoperforation)'],['d_cam','Intraoral camera'],['d_tele','Remote monitoring app for aligner patients']];
+const OR_STAGES=['Records','Bonding','Wire change','Elastics','Activation / adjustment','IPR','Aligner delivery','Refinement scan','Debond','Retainer delivery','Review'];
+const OR_PHASES=[['ph_align','Alignment'],['ph_level','Levelling'],['ph_space','Space closure'],['ph_finish','Finishing and detailing'],['ph_ret','Retention']];
+const orv=(p,k)=>((p.ortho||{})[k]);
+const orn=(p,k)=>{const v=parseFloat(orv(p,k));return isNaN(v)?null:v};
+function orIn(p,k,label,opt={}){const v=orv(p,k);const t=opt.type||'text';
+  return `<label class="f"><span>${label}${opt.unit?' ('+opt.unit+')':''}</span><input type="${t}" ${t==='number'?'step="0.5" inputmode="decimal"':''} data-or="${k}" value="${esc(v==null?'':v)}" ${opt.ph?`placeholder="${esc(opt.ph)}"`:''}></label>`}
+function orSel(p,k,label,opts){const v=orv(p,k)||'';return `<label class="f"><span>${label}</span><select data-or="${k}"><option value="">—</option>${opts.map(o=>`<option ${v===o?'selected':''}>${esc(o)}</option>`).join('')}</select></label>`}
+function orCk(p,k,label){return `<label class="row small orck"><input type="checkbox" data-or="${k}" ${orv(p,k)?'checked':''} style="width:20px;height:20px"> ${label}</label>`}
+function orTa(p,k,label,rows){return `<label class="f"><span>${label}</span><textarea data-or="${k}" rows="${rows||3}">${esc(orv(p,k)||'')}</textarea></label>`}
+function orCephRow(p,[k,l,u,norm,sd]){const v=orn(p,k==='anb'&&orn(p,'anb')==null&&orn(p,'sna')!=null&&orn(p,'snb')!=null?'__':k);
+  let val=orn(p,k);let auto=false;if(k==='anb'&&val==null&&orn(p,'sna')!=null&&orn(p,'snb')!=null){val=Math.round((orn(p,'sna')-orn(p,'snb'))*10)/10;auto=true}
+  const flag=val==null?'':val>norm+sd?'High':val<norm-sd?'Low':'Normal';
+  return `<div class="cephrow"><span class="cn">${l}</span><input type="number" step="0.1" inputmode="decimal" data-or="${k}" value="${esc(orv(p,k)==null?'':orv(p,k))}" ${auto?`placeholder="${val} (calculated)"`:''} aria-label="${l}"><span class="small muted">${u} · normal ${norm}±${sd}</span>${flag?`<span class="pill ${flag==='Normal'?'ok':'warn'}">${auto?'= ':''}${val}${u==='°'?'°':''} ${flag}</span>`:'<span></span>'}</div>`}
+function orInterpret(p){
+  const out=[];const anb=orn(p,'anb')!=null?orn(p,'anb'):(orn(p,'sna')!=null&&orn(p,'snb')!=null?orn(p,'sna')-orn(p,'snb'):null);
+  if(anb!=null)out.push('Skeletal Class '+(anb>4?'II':anb<0?'III':'I')+' (ANB '+(Math.round(anb*10)/10)+'°)');
+  const fma=orn(p,'fma'),sg=orn(p,'sngogn');const vv=fma!=null?fma:null;
+  if(vv!=null)out.push(vv>28?'high-angle (hyperdivergent) pattern':vv<22?'low-angle (hypodivergent) pattern':'normal vertical pattern');else if(sg!=null)out.push(sg>36?'high-angle pattern':sg<28?'low-angle pattern':'normal vertical pattern');
+  const oj=orn(p,'overjet'),ob=orn(p,'overbite');
+  if(oj!=null)out.push(oj>4?'increased overjet ('+oj+' mm)':oj<0?'reverse overjet / anterior crossbite ('+oj+' mm)':'overjet '+oj+' mm');
+  if(ob!=null)out.push(ob>4?'deep bite ('+ob+' mm)':ob<0?'anterior open bite ('+ob+' mm)':'overbite '+ob+' mm');
+  const m=[orv(p,'molarR'),orv(p,'molarL')].filter(Boolean);if(m.length)out.push('molars R/L: '+(orv(p,'molarR')||'–')+' / '+(orv(p,'molarL')||'–'));
+  const cu=orn(p,'crowdU'),cl=orn(p,'crowdL');if(cu!=null||cl!=null)out.push('crowding: upper '+(cu==null?'–':cu)+' mm, lower '+(cl==null?'–':cl)+' mm');
+  const x=orv(p,'crossbite');if(x&&x!=='None')out.push(x.toLowerCase()+' crossbite');
+  const u1=orn(p,'u1sn');if(u1!=null)out.push(u1>108?'proclined upper incisors':u1<98?'retroclined upper incisors':'upper incisors normal');
+  const im=orn(p,'impa');if(im!=null)out.push(im>95?'proclined lower incisors':im<85?'retroclined lower incisors':'lower incisors normal');
+  return out;
+}
+function orRecProgress(p){const n=OR_RECORDS.filter(([k])=>orv(p,k)).length;return [n,OR_RECORDS.length]}
+function orSummaryText(p){
+  const L=[];const g=(k)=>orv(p,k);
+  L.push('ORTHODONTIC ASSESSMENT – '+(p.first||'')+' '+(p.last||'')+(p.dob?', '+age(p.dob)+' yrs':''));
+  if(g('complaint'))L.push('Chief complaint: '+g('complaint'));
+  const habits=OR_HABITS.filter(([k])=>g(k)).map(x=>x[1]);if(habits.length)L.push('Habits: '+habits.join(', '));
+  if(g('growth'))L.push('Growth: '+g('growth')+(g('cvm')?' (CVM '+g('cvm')+')':''));
+  const ex=[g('profile')&&'profile '+g('profile').toLowerCase(),g('diverg')&&g('diverg').toLowerCase(),g('lips')&&'lips '+g('lips').toLowerCase()].filter(Boolean);if(ex.length)L.push('Extraoral: '+ex.join(', '));
+  if(g('tmj'))L.push('TMJ: '+g('tmj'));
+  const io=orInterpret(p);if(io.length)L.push('Findings: '+io.join('; '));
+  if(g('diagnosis'))L.push('Diagnosis: '+g('diagnosis'));
+  if(g('problems'))L.push('Problem list: '+g('problems'));
+  if(g('objectives'))L.push('Objectives: '+g('objectives'));
+  const pl=[g('approach'),g('appliance'),g('extract')&&'extractions: '+g('extract'),g('anchor')&&'anchorage: '+g('anchor'),g('ipr')&&'IPR '+g('ipr')+' mm',g('months')&&'about '+g('months')+' months'].filter(Boolean);if(pl.length)L.push('Plan: '+pl.join(' · '));
+  const dev=OR_DEVICES.filter(([k])=>g(k)).map(x=>x[1].replace(/ \(.*\)/,''));if(dev.length)L.push('Digital workflow: '+dev.join(', '));
+  if(g('ret'))L.push('Retention: '+g('ret'));
+  return L.join('\n');
+}
+document.addEventListener('toggle',e=>{const d=e.target;if(d&&d.dataset&&d.dataset.orsec){view.orOpen=view.orOpen||{};view.orOpen[d.dataset.orsec]=d.open}},true);
+function orthoTab(p){
+  p.ortho=p.ortho||{};const ro=isAcct()||readOnly();const [rn,rt]=orRecProgress(p);const io=orInterpret(p);
+  const vis=(p.ortho.visits||[]).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date))||(b.at||0)-(a.at||0));
+  const f=view.orVisit||{};
+  let secN=0;const oo=view.orOpen||{};const sec=(t,body,open,badge)=>{const id=++secN;return `<details class="orsec panel" data-orsec="${id}" ${(oo[id]!==undefined?oo[id]:open)?'open':''}><summary><h3 style="display:inline">${t}</h3>${badge?` <span class="pill ${badge[1]||'info'}">${badge[0]}</span>`:''}</summary><div class="orbody">${body}</div></details>`};
+  const html=`<fieldset ${ro?'disabled':''} style="border:0;padding:0;margin:0;min-width:0;display:flex;flex-direction:column;gap:12px">
+  <div class="msg ok" style="margin:0"><b>Orthodontic department.</b> Work down the sections: first collect the records, then examine, measure, diagnose and plan. Everything is saved with the patient.</div>
+  ${sec('1 · Records needed before planning',`<div class="orgrid">${OR_RECORDS.map(([k,l])=>orCk(p,k,l)).join('')}</div><div class="small muted">Photos and X-rays are saved in the <b>X-rays</b> tab (choose the type).</div>`,true,[rn+' / '+rt,rn===rt?'ok':'warn'])}
+  ${sec('2 · Complaint, growth and habits',`${orTa(p,'complaint','Chief complaint and what the patient expects',2)}
+    <div class="grid2">${orSel(p,'motiv','Motivation / cooperation',['Good','Average','Poor'])}${orSel(p,'growth','Growth status',['Pre-pubertal (growing)','Pubertal peak','Post-pubertal','Adult (growth finished)'])}
+    ${orIn(p,'cvm','Cervical vertebral maturation stage (CS 1–6)')}${orIn(p,'prevtx','Previous orthodontic treatment')}</div>
+    <div class="orgrid">${OR_HABITS.map(([k,l])=>orCk(p,k,l)).join('')}${orCk(p,'famhx','Family history of similar malocclusion')}</div>`,false)}
+  ${sec('3 · Face and jaw joint',`<div class="grid2">${orSel(p,'profile','Facial profile',['Straight','Convex','Concave'])}${orSel(p,'diverg','Face type',['Mesofacial (average)','Dolichofacial (long)','Brachyfacial (short)'])}
+    ${orSel(p,'lips','Lips at rest',['Competent','Incompetent','Strained closure','Everted lower lip'])}${orIn(p,'nla','Nasolabial angle',{type:'number',unit:'°'})}
+    ${orSel(p,'smile','Smile arc',['Consonant','Flat','Reverse'])}${orIn(p,'gingival','Gum shown when smiling',{type:'number',unit:'mm'})}
+    ${orIn(p,'asym','Facial asymmetry (side / amount)')}${orIn(p,'midfacial','Dental midline to face midline',{ph:'e.g. upper 2 mm to right'})}
+    ${orIn(p,'opening','Maximum mouth opening',{type:'number',unit:'mm'})}${orIn(p,'tmj','TMJ: clicking, pain, deviation')}</div>`,false)}
+  ${sec('4 · Teeth and bite',`<div class="grid2">${orSel(p,'dentition','Dentition',['Primary','Early mixed','Late mixed','Permanent'])}${orSel(p,'hyg','Oral hygiene',['Good','Fair','Poor'])}
+    ${orSel(p,'molarR','Molar relation – right',['Class I','Class II','Class III','End-on'])}${orSel(p,'molarL','Molar relation – left',['Class I','Class II','Class III','End-on'])}
+    ${orSel(p,'canR','Canine relation – right',['Class I','Class II','Class III'])}${orSel(p,'canL','Canine relation – left',['Class I','Class II','Class III'])}
+    ${orIn(p,'overjet','Overjet',{type:'number',unit:'mm'})}${orIn(p,'overbite','Overbite',{type:'number',unit:'mm'})}
+    ${orSel(p,'crossbite','Crossbite',['None','Anterior','Posterior – one side','Posterior – both sides','Scissor bite'])}${orSel(p,'openbite','Open bite',['None','Anterior','Lateral'])}
+    ${orIn(p,'crowdU','Crowding – upper',{type:'number',unit:'mm'})}${orIn(p,'crowdL','Crowding – lower',{type:'number',unit:'mm'})}
+    ${orIn(p,'spacing','Spacing',{type:'number',unit:'mm'})}${orIn(p,'spee','Curve of Spee depth',{type:'number',unit:'mm'})}
+    ${orIn(p,'midU','Upper midline shift',{ph:'e.g. 2 mm right'})}${orIn(p,'midL','Lower midline shift',{ph:'e.g. 1 mm left'})}</div>
+    ${orIn(p,'missing','Missing, impacted, ectopic or extra teeth',{ph:'e.g. 13 impacted, 35 congenitally missing'})}
+    ${io.length?`<div class="note-ex" style="display:block;white-space:normal"><b>Summary of findings:</b> ${esc(io.join('; '))}</div>`:''}`,false)}
+  ${sec('5 · Cephalometric values',`<p class="small muted" style="margin:0">Type the values from your cephalometric tracing or software. Normal values are for adults; for children allow for growth.</p><div class="cephgrid">${OR_CEPH.map(r=>orCephRow(p,r)).join('')}</div>
+    ${io.length?`<div class="note-ex" style="display:block;white-space:normal">${esc(io.join('; '))}</div>`:''}`,false)}
+  ${sec('6 · Diagnosis and problem list',`${orTa(p,'diagnosis','Diagnosis (skeletal, dental, soft tissue)',2)}
+    <div class="row"><button class="btn small" data-act="orthoSuggest">Suggest problem list from findings</button><span class="small muted">A starting point only – edit it.</span></div>
+    ${orTa(p,'problems','Problem list',3)}${orTa(p,'objectives','Treatment objectives',2)}`,false)}
+  ${sec('7 · Treatment plan',`<div class="grid2">${orSel(p,'approach','Approach',['Observation','Interceptive','Growth modification','Camouflage','Comprehensive','Surgical–orthodontic'])}${orSel(p,'appliance','Main appliance',OR_APPL)}
+    ${orSel(p,'extract','Extractions',['None','4 first premolars','2 upper first premolars','Lower incisor','Second molars','Other'])}${orSel(p,'anchor','Anchorage',['Minimum','Moderate','Maximum','Maximum with mini-implants'])}
+    ${orIn(p,'ipr','Total IPR (interproximal reduction)',{type:'number',unit:'mm'})}${orIn(p,'months','Estimated duration',{type:'number',unit:'months'})}
+    ${orSel(p,'ret','Retention',['Fixed bonded + clear retainer','Clear (vacuum-formed) retainers','Hawley retainers','Fixed bonded only'])}</div>
+    <div class="orgrid">${OR_PHASES.map(([k,l])=>orCk(p,k,'Phase done: '+l)).join('')}</div>
+    ${orTa(p,'plannotes','Other plan notes (elastics, surgery, referral…)',2)}`,false)}
+  ${sec('8 · Digital workflow, scanner and devices',`<p class="small muted" style="margin:0">Tick what is used for this case.</p><div class="orgrid">${OR_DEVICES.map(([k,l])=>orCk(p,k,l)).join('')}</div>
+    <div class="grid2">${orIn(p,'scanDate','Scan date',{type:'date'})}${orIn(p,'scanDev','Scanner / device used',{ph:'model name'})}
+    ${orIn(p,'scanRef','Scan file or case ID',{ph:'e.g. STL folder, case no.'})}${orSel(p,'scanQ','Scan quality',['Good','Repeat needed'])}</div>`,false)}
+  ${sec('9 · Clear aligners',`<div class="grid2">${orIn(p,'alSys','Aligner system or lab')}${orSel(p,'alAtt','Attachments',['Yes','No'])}
+    ${orIn(p,'alUp','Number of aligners – upper',{type:'number'})}${orIn(p,'alLo','Number of aligners – lower',{type:'number'})}
+    ${orIn(p,'alWear','Wear',{type:'number',unit:'hours / day'})}${orIn(p,'alChange','Change every',{type:'number',unit:'days'})}
+    ${orIn(p,'alCur','Current aligner number',{type:'number'})}${orIn(p,'alRef','Refinements so far',{type:'number'})}</div>
+    ${orIn(p,'alIpr','IPR stages / notes')}${orTa(p,'alNotes','Tracking and refinement notes',2)}`,false)}
+  ${sec('10 · Visits',`${ro?'':`<div class="grid2"><label class="f"><span>Date</span><input type="date" id="orv-date" value="${esc(f.date||today())}"></label>${'' }<label class="f"><span>What was done</span><select id="orv-stage">${OR_STAGES.map(o=>`<option>${o}</option>`).join('')}</select></label></div>
+    <label class="f"><span>Details (wire, elastics, aligner no., findings)</span><input type="text" id="orv-detail" placeholder="e.g. 0.016 NiTi upper, class II elastics"></label>
+    <label class="f"><span>Next visit (date or weeks)</span><input type="text" id="orv-next" placeholder="e.g. 6 weeks"></label>
+    <div class="row"><button class="btn primary" data-act="orthoVisitAdd" type="button">Save visit</button></div>`}
+    ${vis.length?`<div class="plist">${vis.map(v=>`<div class="member"><span style="flex:1;min-width:0"><b>${esc(v.stage)}</b> · ${fmtDate(v.date)}<br><span class="small">${esc(v.detail||'')}</span>${v.next?`<br><span class="small muted">Next: ${esc(v.next)}</span>`:''}<br><span class="small muted">${esc(v.by||'')}</span></span>${ro?'':`<button class="btn small" data-orvdel="${v.id}" type="button">Delete</button>`}</div>`).join('')}</div>`:'<div class="empty">No visits recorded yet.</div>'}`,false)}
+  ${ro?'':`<section class="panel"><div class="row"><button class="btn primary" data-act="orthoNote" type="button">Add this assessment to Clinical notes</button><span class="small muted">Makes one dated note from everything above.</span></div></section>`}
+  </fieldset>`;
+  return html;
+}
 function paperGuide(p){
   const done=p.plan.filter(i=>i.status==='completed').length;
   const steps=[['details','1','Details','Name, mobile, old file no. and first visit date',!!(p.first||'').trim()],
@@ -2323,9 +2441,9 @@ function patientView(){
   const p=P();if(!p){view.screen='list';return listView();}
   migrate(p);
   const al=alertsOf(p),ms=mhStatus(p);
-  const tabs=isAes(p)?[['details','Details'],['mh','Medical history'],['plan','Treatments'],['pay','Payments'],['notes','Clinical notes'],['xrays','Photos'],['rx','Prescription']]:[['details','Details'],['mh','Medical history'],['chart','Chart'],['plan','Treatment plan'],['pay','Payments'],['notes','Clinical notes'],['xrays','X-rays'],['rx','Prescription']].concat(labOn()?[['lab','Lab']]:[]);
+  const tabs=isAes(p)?[['details','Details'],['mh','Medical history'],['plan','Treatments'],['pay','Payments'],['notes','Clinical notes'],['xrays','Photos'],['rx','Prescription']]:[['details','Details'],['mh','Medical history'],['chart','Chart'],['plan','Treatment plan'],['pay','Payments'],['notes','Clinical notes'],['xrays','X-rays'],['rx','Prescription']].concat(isOrtho(p)?[['ortho','Ortho']]:[]).concat(labOn()?[['lab','Lab']]:[]);
   if(isAes(p)&&view.tab==='chart')view.tab='details';
-  let body={details:detailsTab,mh:mhTab,chart:chartTab,plan:planTab,pay:payTab,notes:notesTab,xrays:xrayTab,appts:apptTab,rx:rxTab,lab:labTab}[view.tab](p);
+  let body={details:detailsTab,mh:mhTab,chart:chartTab,plan:planTab,pay:payTab,notes:notesTab,xrays:xrayTab,appts:apptTab,rx:rxTab,lab:labTab,ortho:orthoTab}[view.tab](p);
   if(isAcct()&&['details','mh','chart','plan'].includes(view.tab))body=`<fieldset class="ro" disabled>${body}</fieldset>`;
   return `
   <header class="top"><button class="btn small" data-act="back">← Patients</button>${syncBadge()}</header>
@@ -2351,6 +2469,7 @@ function detailsTab(p){
   <section class="panel">
     <h3>Personal details</h3>
     ${deptList().length?`<label class="f"><span>Department</span><select data-f="dept" id="f-dept"><option value="">—</option>${deptList().concat(p.dept&&!deptList().includes(p.dept)?[p.dept]:[]).map(o=>`<option ${p.dept===o?'selected':''}>${esc(o)}</option>`).join('')}</select></label>`:''}
+    <label class="row small" style="gap:8px"><input type="checkbox" data-act="orthoToggle" id="ortho-on" ${isOrtho(p)?'checked':''} ${/orthodon/i.test(p.dept||'')?'disabled':''} style="width:20px;height:20px"> Orthodontic case (adds an <b>Ortho</b> tab with the full assessment)</label>
     <div class="grid2">${fld('first','First name',p.first)}${fld('last','Surname / family name',p.last)}${fld('dob','Date of birth',p.dob,'date')}
     <label class="f"><span>Sex</span><select data-f="sex" id="f-sex">${['','F','M','O'].map(o=>`<option ${p.sex===o?'selected':''} value="${o}">${{'':'—',F:'Female',M:'Male',O:'Other'}[o]}</option>`).join('')}</select></label>
     ${fld('phone','Mobile',p.phone,'tel')}${fld('cnic','CNIC',p.cnic,'text','inputmode="numeric" placeholder="00000-0000000-0"')}</div>
@@ -3106,6 +3225,8 @@ document.addEventListener('click',async e=>{
     save();render();return}
   const b=e.target.closest('button');if(!b)return;
   const p=P(),d=b.dataset;
+  if(d.pxprint){const [pid,rid]=d.pxprint.split('|');const pp=db.patients.find(x=>x.id===pid);const rr=pp&&(pp.rx||[]).find(x=>x.id===rid);if(rr){try{await rxPdf(pp,rr,'print')}catch(err){toast(friendly(err))}}return}
+  if(pharmOnly()&&(d.open||d.home==='list'||d.home==='aes'||d.home==='appts'||d.home==='earn')){view.screen='pharm';render();return}
   if(d.pinkey){const i=$('#earn-pin')||$('#own-code');if(i){i.value=d.pinkey==='del'?i.value.slice(0,-1):(i.value+d.pinkey).slice(0,i.maxLength>0?i.maxLength:6);i.focus()}return}
   if(d.earnper){earn.period=d.earnper;render();return}
   if(d.earnnav!==undefined){earnShift(+d.earnnav);render();return}
@@ -3164,9 +3285,19 @@ document.addEventListener('click',async e=>{
   if(d.act==='earnForgot'){earn.mode='set';earn.err='';render();return}
   if(d.act==='earnCancelSet'){earn.mode='';earn.err='';render();return}
   if(d.rxgiven){const [pid,rid]=d.rxgiven.split('|');const pp=db.patients.find(x=>x.id===pid),rr=pp&&(pp.rx||[]).find(x=>x.id===rid);if(rr){rr.pharm={status:'given',by:me.name,at:Date.now()};markDirty(pid);render();toast('Marked as given')}return}
-  if(d.labdone){const [pid,lid]=d.labdone.split('|');const pp=db.patients.find(x=>x.id===pid),ll=pp&&(pp.labs||[]).find(x=>x.id===lid);if(ll){const i=document.querySelector('[data-labres="'+lid+'"]');ll.status='done';ll.result=i?i.value.trim():'';ll.doneBy=me.name;ll.doneAt=Date.now();markDirty(pid);render();toast('Marked as done');try{if(ll.byId&&ll.byId!==user.id)await sendMessage(ll.byId,'Lab result ready for '+pp.first+' '+pp.last+': '+ll.what+(ll.result?' – '+ll.result:''),{kind:'lab',patient_id:pid})}catch(e){}}return}
+  if(d.labdone){const [pid,lid]=d.labdone.split('|');const pp=db.patients.find(x=>x.id===pid),ll=pp&&(pp.labs||[]).find(x=>x.id===lid);if(ll){const i=document.querySelector('[data-labres="'+lid+'"]');ll.status='done';ll.stage='Delivered';ll.result=i?i.value.trim():'';ll.doneBy=me.name;ll.doneAt=Date.now();markDirty(pid);render();toast('Marked as done');try{await labTell(pp,ll,'Delivered by the lab: '+ll.what+' for '+pp.first+' '+pp.last+(ll.result?' – '+ll.result:''))}catch(e){}}return}
   if(d.act==='labAdd'){const pp=P();if(!pp)return;const what=$('#lab-what').value,note=($('#lab-note').value||'').trim();const l={id:uid(),what,note,date:today(),at:Date.now(),by:me.name,byId:user.id,status:'requested'};pp.labs=pp.labs||[];pp.labs.push(l);save();render();toast('Sent to the lab');notifyUnit('lab','Lab request for '+pp.first+' '+pp.last+': '+what+(note?' – '+note:''),pp.id);return}
-  if(d.deptf!==undefined){view.dept=d.deptf;render();return}
+  if(d.act==='orthoSuggest'){const pp=P();if(!pp)return;const io=orInterpret(pp);const L=[];const x=(k)=>pp.ortho&&pp.ortho[k];
+    const anb=orn(pp,'anb')!=null?orn(pp,'anb'):(orn(pp,'sna')!=null&&orn(pp,'snb')!=null?orn(pp,'sna')-orn(pp,'snb'):null);
+    if(anb!=null)L.push('Skeletal Class '+(anb>4?'II':anb<0?'III':'I'));const oj=orn(pp,'overjet'),ob=orn(pp,'overbite');if(oj!=null&&oj>4)L.push('Increased overjet');if(oj!=null&&oj<0)L.push('Reverse overjet');if(ob!=null&&ob>4)L.push('Deep bite');if(ob!=null&&ob<0)L.push('Anterior open bite');
+    const cu=orn(pp,'crowdU'),cl=orn(pp,'crowdL');if(cu>4)L.push('Upper crowding');if(cl>4)L.push('Lower crowding');if(orn(pp,'spacing')>2)L.push('Spacing');if(x('crossbite')&&x('crossbite')!=='None')L.push(x('crossbite')+' crossbite');if(x('midU')||x('midL'))L.push('Midline discrepancy');if(x('missing'))L.push('Missing / impacted teeth: '+x('missing'));
+    OR_HABITS.forEach(([k,l])=>{if(x(k))L.push('Habit: '+l.toLowerCase())});if(x('profile')==='Convex')L.push('Convex profile');if(x('profile')==='Concave')L.push('Concave profile');if(x('lips')==='Incompetent')L.push('Incompetent lips');
+    if(!L.length){toast('Fill in the examination and measurements first');return}pp.ortho.problems=L.map((t,i)=>(i+1)+'. '+t).join('\n');save();render();toast('Problem list suggested – please check it');return}
+  if(d.act==='orthoVisitAdd'){const pp=P();if(!pp)return;const date=$('#orv-date').value||today(),stage=$('#orv-stage').value,detail=($('#orv-detail').value||'').trim(),next=($('#orv-next').value||'').trim();pp.ortho=pp.ortho||{};pp.ortho.visits=pp.ortho.visits||[];pp.ortho.visits.push({id:uid(),date,stage,detail,next,by:me.name,at:Date.now()});save();render();toast('Visit saved');return}
+  if(d.orvdel){const pp=P();if(!pp||!pp.ortho)return;pp.ortho.visits=(pp.ortho.visits||[]).filter(v=>v.id!==d.orvdel);save();render();return}
+  if(d.act==='orthoNote'){const pp=P();if(!pp)return;if(isAcct()){toast('Clinical notes are written by dentists.');return}const t=orSummaryText(pp);pp.notes.push({id:uid(),date:today(),title:'Orthodontic assessment',by:me.name,text:t});save();view.tab='notes';render();toast('Added to Clinical notes');return}
+  if(d.deptf!==undefined){view.dept=d.deptf;view.deptOpen=false;render();return}
+  if(d.act==='deptToggle'){view.deptOpen=!view.deptOpen;render();return}
   if(d.deptdel!==undefined){const ds=deptList().slice();ds.splice(+d.deptdel,1);await deptSave({depts:ds});return}
   if(d.act==='deptAdd'){const i=$('#dept-new'),n=(i&&i.value||'').trim();if(!n)return;if(deptList().includes(n)){toast('Already in the list');return}await deptSave({depts:deptList().concat([n])},'Department added');return}
   if(d.act==='deptReady'){await deptSave(Object.assign({depts:DENTAL_DEPTS.slice(),facility:'dental_hospital'},hospUnits()),'Ready-made dental departments, Pharmacy and Lab added');return}
@@ -3402,6 +3533,9 @@ document.addEventListener('change',async e=>{
   if(el.id==='facility-sel'){const f=el.value;const patch={facility:f};if(f==='dental_hospital'){if(!deptList().length)patch.depts=DENTAL_DEPTS.slice();Object.assign(patch,hospUnits())}await deptSave(patch);return}
   if(el.id==='switchClinic'){const m=memberships.find(x=>x.clinic_id===el.value);if(m)await openClinic(m);return}
   if(el.id==='importFile'&&el.files&&el.files[0]){try{const d=JSON.parse(await el.files[0].text());const list=Array.isArray(d)?d:(d.patients||(d.tables&&d.tables.patients)||[]);await importPatients(list.filter(x=>!x.example));}catch(err){toast('That file is not a valid backup')}el.value='';return}
+  if(el.dataset&&el.dataset.or!==undefined&&(el.tagName==='SELECT'||el.type==='checkbox'||el.type==='number'||el.type==='date')){const p=P();if(p&&view.screen==='patient'){const sc=window.scrollY;setTimeout(()=>{if(view.screen==='patient'&&!(document.activeElement&&document.activeElement.dataset&&document.activeElement.dataset.or!==undefined&&document.activeElement.type!=='checkbox'&&document.activeElement.tagName!=='SELECT')){render();window.scrollTo(0,sc)}},60)}return}
+  if(el.dataset&&el.dataset.labstage){const [pid,lid]=el.dataset.labstage.split('|');const pp=db.patients.find(x=>x.id===pid),ll=pp&&(pp.labs||[]).find(x=>x.id===lid);if(ll){ll.stage=el.value;markDirty(pid);toast('Clinic informed: '+el.value);await labTell(pp,ll,'Lab update for '+pp.first+' '+pp.last+' – '+ll.what+': '+el.value)}return}
+  if(el.id==='ortho-on'){const p=P();if(p){p.orthoOn=el.checked;save();render()}return}
   if((el.dataset.f&&(el.tagName==='SELECT'||el.type==='date'))||el.dataset.mhf==='signed'||el.dataset.bpe!==undefined)render();
 });
 document.addEventListener('input',e=>{
@@ -3412,6 +3546,7 @@ document.addEventListener('input',e=>{
   if(['pay-amt','pay-disc'].includes(el.id)){if(el.id==='pay-disc'&&el.tagName==='SELECT'){view.payForm=readPayForm(P()).f}const pv=$('#payPreview'),p=P();if(pv&&p)pv.innerHTML=payPreview(p);return}
   if(el.id==='search'){view.q=el.value;const pos=el.selectionStart;render();const s=$('#search');s.focus();s.setSelectionRange(pos,pos);return}
   const p=P();if(!p||view.screen!=='patient')return;
+  if(el.dataset.or!==undefined){p.ortho=p.ortho||{};const v=el.type==='checkbox'?el.checked:el.value;if(v===''||v===false)delete p.ortho[el.dataset.or];else p.ortho[el.dataset.or]=v;save();return}
   if(el.dataset.f){p[el.dataset.f]=el.value;delete p.example;save();return}
   if(el.dataset.mhd){p.mh.answers[el.dataset.mhd].d=el.value;save();return}
   if(el.dataset.mhf){p.mh[el.dataset.mhf]=el.type==='checkbox'?el.checked:el.value;save();return}

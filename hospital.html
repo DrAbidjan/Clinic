@@ -1,0 +1,78 @@
+<!doctype html>
+<!-- ClinicRecords.pk – welcome page. © 2026 Abid Ali. All rights reserved. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#ffffff"><meta name="color-scheme" content="light">
+<title>Hospital – ClinicRecords.pk</title>
+<meta name="description" content="Patient records for dental clinics, medical centers and hospitals. Choose your facility type to create your own workspace.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&family=Source+Serif+4:wght@500;600&display=swap">
+<style>
+:root{--bg:#ffffff;--card:#fff;--ink:#1E2F4D;--muted:#5F7088;--line:#DDE4EA;--teal:#3E9A8A;--teal-d:#2E8577;--teal-soft:#E6F2F0;--wave1:#DCEBEA;--wave2:#CCE2E0;--ok:#1d6b34;--ok-soft:#e1f4e6;--warn:#8a5a00;--warn-soft:#fdf0d5}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'Nunito Sans',system-ui,-apple-system,'Segoe UI',sans-serif;line-height:1.5}
+a{color:var(--teal-d)}
+.page{position:relative;overflow:hidden;min-height:100vh}
+.waves{position:absolute;left:0;bottom:0;width:100%;height:220px;pointer-events:none}
+.in{position:relative;max-width:1080px;margin:0 auto;padding:40px 24px 60px}
+header{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:18px;padding-bottom:28px;border-bottom:1px solid var(--line)}
+.logo{width:72px;height:72px;border-radius:18px;background:var(--teal);display:flex;align-items:center;justify-content:center}
+.name{margin:0;font-size:clamp(2rem,6vw,2.75rem);font-weight:800;letter-spacing:-.5px;line-height:1}
+.name small{font-size:.6em;font-weight:700;color:var(--teal-d)}
+.tag{margin:8px 0 0;font-size:.9rem;font-weight:700;letter-spacing:2.4px;color:var(--muted)}
+.hero{text-align:center;padding:40px 0 0}
+.quote{margin:0 auto;max-width:720px;font-family:'Source Serif 4',Georgia,serif;font-size:clamp(1.35rem,3.6vw,2.1rem);line-height:1.3;font-weight:500}
+.rule{width:140px;height:2px;background:#CCE2E0;margin:32px auto}
+h1{margin:0;font-size:clamp(1.8rem,4.5vw,2.4rem);font-weight:800}
+.sub{margin:10px auto 0;max-width:460px;font-size:1.15rem;color:var(--muted)}
+.cards{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:22px;padding-top:44px}
+.c{flex:1 1 260px;max-width:300px;min-width:0;text-decoration:none;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:22px;padding:30px 26px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:12px;font:inherit}
+.c.big{flex-basis:280px;max-width:330px;border:2px solid var(--teal);border-radius:24px;padding:42px 28px;box-shadow:0 18px 40px rgba(46,133,119,.14)}
+button.c{cursor:pointer}
+.ico{width:64px;height:64px;border-radius:18px;background:var(--teal-soft);display:flex;align-items:center;justify-content:center}
+.big .ico{width:76px;height:76px;border-radius:20px;background:var(--teal)}
+.ico svg{width:34px;height:34px;stroke:var(--teal-d);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.big .ico svg{width:40px;height:40px;stroke:#fff}
+.t{font-size:1.4rem;font-weight:800}.big .t{font-size:1.65rem}
+.d{font-size:.95rem;color:var(--muted)}
+.go{margin-top:6px;padding:12px 22px;border:1.5px solid var(--teal);border-radius:12px;color:var(--teal-d);font-weight:700;font-size:.95rem}
+.big .go{margin-top:8px;padding:14px 26px;background:var(--teal);color:#fff;font-size:1rem}
+.badge{font-size:.72rem;font-weight:700;padding:3px 10px;border-radius:99px}.badge.soon{background:var(--warn-soft);color:var(--warn)}.badge.ok{background:var(--ok-soft);color:var(--ok)}
+.go.soon{border-color:var(--line);color:var(--ink)}
+.type{max-width:980px;margin:26px auto 0;padding:20px;border-radius:22px;background:var(--card);border:1px solid var(--line);box-shadow:0 18px 40px rgba(46,133,119,.1)}
+.type[hidden]{display:none}.type{border:0;box-shadow:none;padding:0}.type h2{margin:0 0 14px;font-size:1.2rem;text-align:center}
+.type .row{display:flex;flex-wrap:wrap;gap:16px}.type .c{max-width:none;border-radius:18px;padding:22px;flex:1 1 220px}
+.login{margin:36px 0 0;text-align:center;font-size:1.05rem;color:var(--muted)}.login a{font-weight:800}
+.incl{margin:44px auto 0;max-width:900px;padding:22px;border-radius:20px;background:var(--card);border:1px solid var(--line)}
+.incl h2{margin:0 0 4px;font-size:1.15rem;text-align:center}.incl p{margin:0 0 14px;text-align:center;color:var(--muted);font-size:.95rem}
+.incl ul{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+@media (max-width:640px){.incl ul{grid-template-columns:1fr}}
+.incl li{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:12px;background:var(--bg);font-size:.95rem}
+.incl li b{display:block}.incl li span.s{color:var(--muted);font-size:.88rem}
+.incl .badge{margin-left:6px;vertical-align:middle}
+footer{position:relative;text-align:center;font-size:.85rem;color:var(--muted);padding:0 16px 22px;margin-top:0}
+a:focus-visible,button:focus-visible{outline:3px solid var(--teal);outline-offset:3px}
+</style>
+</head>
+<body>
+<div class="page"><div class="in">
+<header>
+  <div class="logo"><svg aria-hidden="true" width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1"/><path d="M12 9v6M9 12h6"/></svg></div>
+  <div><p class="name">ClinicRecords<small>.pk</small></p><p class="tag">MEDICAL · DENTAL · HOSPITALS</p></div>
+</header>
+<p class="login" style="margin:22px 0 0;text-align:left"><a href="home.html">← Back</a></p>
+<section class="type" id="htype" style="margin-top:36px">
+  <h1 style="text-align:center;font-size:clamp(1.6rem,4vw,2.2rem)">Hospital</h1><p class="sub" style="text-align:center;margin-bottom:22px">Which departments do you need?</p>
+  <div class="row">
+    <a class="c" href="index.html?signup=1&amp;type=dental_hospital"><span class="badge ok">Available now</span><span class="t">Dental Hospital</span><span class="d">Dental departments, pharmacy and laboratory</span><span class="go" style="background:var(--teal);color:#fff">Create workspace</span></a>
+    <a class="c" href="https://wa.me/923113124533?text=Hello%2C%20I%20would%20like%20to%20register%20my%20interest%20in%20ClinicRecords.pk%20for%20a%20medical%20hospital."><span class="badge soon">Coming soon</span><span class="t">Medical Hospital</span><span class="d">Medical departments, pharmacy and laboratory</span><span class="go soon">Register interest</span></a>
+    <a class="c" href="https://wa.me/923113124533?text=Hello%2C%20I%20would%20like%20to%20know%20the%20price%20of%20ClinicRecords.pk%20for%20a%20hospital%20with%20both%20dental%20and%20medical%20departments."><span class="badge soon">Other price</span><span class="t">Both</span><span class="d">Dental and medical departments in one hospital</span><span class="go soon">Ask for the price</span></a>
+  </div>
+</section>
+<p class="login">Already have a workspace? <a href="index.html">Log in</a></p>
+</div>
+<footer>© 2026 ClinicRecords.pk · Developed and designed by Abid Ali, Dentist &amp; Forensic Odontologist · <a href="https://wa.me/923113124533">WhatsApp 0311 3124533</a></footer>
+</div>
+</body>
+</html>
