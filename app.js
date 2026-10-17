@@ -2006,8 +2006,9 @@ function attendancePanel(){
   const day=attDay||today();
   const rows=attRows||[];const per={};
   rows.forEach(r=>{const end=r.ended_at||(r.id===attId?new Date().toISOString():r.last_seen||r.started_at);(per[r.user_id]=per[r.user_id]||{name:r.name,role:r.role,ms:0,first:r.started_at,last:end}).ms+=new Date(end)-new Date(r.started_at);per[r.user_id].last=end});
+  if(!view.attOpen)return `<section class="panel" id="attendance"><div class="row"><h3>Attendance</h3><span class="spacer"></span><button class="btn small" data-act="attToggle" type="button">Show</button></div></section>`;
   return `<section class="panel" id="attendance">
-    <div class="row"><h3>Attendance</h3><span class="spacer"></span><button class="btn small" data-attday="${shiftDay(day,-1)}" aria-label="Previous day">‹</button><input type="date" id="attPick" value="${day}" style="width:auto"><button class="btn small" data-attday="${shiftDay(day,1)}" aria-label="Next day">›</button></div>
+    <div class="row"><h3>Attendance</h3><span class="spacer"></span><button class="btn small" data-act="attToggle" type="button">Hide</button><button class="btn small" data-attday="${shiftDay(day,-1)}" aria-label="Previous day">‹</button><input type="date" id="attPick" value="${day}" style="width:auto"><button class="btn small" data-attday="${shiftDay(day,1)}" aria-label="Next day">›</button></div>
     <p class="small muted" style="margin:0">Recorded automatically when someone logs in and out on this device. If someone closes the app without logging out, their last activity is used.</p>
     ${attRows===null?'<p class="small muted" style="margin:0">Loading…</p>':rows.length?`
     <div class="att-sum">${Object.values(per).map(p=>`<div><span class="avatar" style="--h:${hueOf(p.name)}">${esc((p.name||'?').replace(/^Dr\.?\s*/i,'').slice(0,1))}</span><span><b>${esc(p.name)}</b><small>${hm(p.first)} – ${hm(p.last)} · ${dur(p.ms)}</small></span></div>`).join('')}</div>
@@ -3332,6 +3333,7 @@ document.addEventListener('click',async e=>{
   if(d.labdone){const [pid,lid]=d.labdone.split('|');const pp=db.patients.find(x=>x.id===pid),ll=pp&&(pp.labs||[]).find(x=>x.id===lid);if(ll){const i=document.querySelector('[data-labres="'+lid+'"]');ll.status='done';ll.stage='Delivered';ll.result=i?i.value.trim():'';ll.doneBy=me.name;ll.doneAt=Date.now();markDirty(pid);render();toast('Marked as done');try{await labTell(pp,ll,'Delivered by the lab: '+ll.what+' for '+pp.first+' '+pp.last+(ll.result?' – '+ll.result:''))}catch(e){}}return}
   if(d.act==='labAdd'){const pp=P();if(!pp)return;const what=$('#lab-what').value,note=($('#lab-note').value||'').trim();const l={id:uid(),what,note,date:today(),at:Date.now(),by:me.name,byId:user.id,status:'requested'};pp.labs=pp.labs||[];pp.labs.push(l);save();render();toast('Sent to the lab');notifyUnit('lab','Lab request for '+labCase(pp).replace(/&middot;/g,'·')+': '+what+(note?' – '+note:''),pp.id);return}
   if(d.ivdel){const {error}=await sb.from('staff_invites').delete().eq('id',d.ivdel);if(error){toast(friendly(error));return}await loadInvites();render();toast('Invitation cancelled');return}
+  if(d.act==='attToggle'){view.attOpen=!view.attOpen;render();return}
   if(d.act==='unitFormToggle'){earn.unitForm=!earn.unitForm;render();return}
   if(d.labpick){const [pid,lid]=d.labpick.split('|');const pp=db.patients.find(x=>x.id===pid),ll=pp&&(pp.labs||[]).find(x=>x.id===lid);if(ll){ll.pickedAt=Date.now();ll.pickedBy=me.name;markDirty(pid);render();toast('Marked as picked up – the lab is told');notifyUnit('lab','Picked up by the clinic: '+ll.what+' ('+labCase(pp).replace(/&middot;/g,'·')+')',pid)}return}
   if(d.act==='orthoSuggest'){const pp=P();if(!pp)return;const io=orInterpret(pp);const L=[];const x=(k)=>pp.ortho&&pp.ortho[k];
