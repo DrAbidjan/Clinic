@@ -262,7 +262,10 @@ const waLink=(p,text)=>{let n=String(p.phone||'').replace(/[^\d]/g,'');if(!n)ret
 async function labTell(pp,ll,text){const skip=new Set([user.id].concat(staffIds('lab'),staffIds('pharmacy')));const to=new Set((team||[]).map(t=>t.user_id).filter(id=>id&&!skip.has(id)));if(ll.byId&&ll.byId!==user.id)to.add(ll.byId);for(const id of to){try{await sendMessage(id,text,{kind:'labclinic',patient_id:pp.id})}catch(e){}}}
 const labCase=p=>{const ini=((p.first||'').slice(0,1)+(p.last||'').slice(0,1)).toUpperCase();const a=p.dob?age(p.dob):'';return esc('Patient '+ini+(a!==''?' · '+a+' yrs':'')+(p.sex==='F'?' · F':p.sex==='M'?' · M':''))};
 function pName(p){return esc((p.first||'')+' '+(p.last||''))}
-const isPS=()=>pharmOn()&&!!me&&staffIds('pharmacy').includes(me.user_id),isLS=()=>labOn()&&!!me&&staffIds('lab').includes(me.user_id);
+let staffInv=[];
+async function loadInvites(){try{const {data,error}=await sb.from('staff_invites').select('*').eq('clinic_id',clinic.id);staffInv=error?[]:(data||[])}catch(e){staffInv=[]}}
+const myInvUnit=()=>{const r=staffInv.find(x=>user&&x.used_by===user.id&&x.unit);return r?r.unit:''};
+const isPS=()=>pharmOn()&&!!me&&(staffIds('pharmacy').includes(me.user_id)||myInvUnit()==='pharmacy'),isLS=()=>labOn()&&!!me&&(staffIds('lab').includes(me.user_id)||myInvUnit()==='lab');
 const pharmOnly=()=>!!me&&!isAdmin()&&(isPS()||isLS());
 function pharmView(){
   const w=rxWaiting(),g=rxGiven();
@@ -300,13 +303,18 @@ function labTab(p){
   <section class="panel"><h3>Lab requests for this patient</h3>
   ${list.length?`<div class="plist">${list.map(l=>`<div class="member"><span style="flex:1;min-width:0"><b>${esc(l.what)}</b>${l.note?' – '+esc(l.note):''}<br><span class="small muted">${fmtDate(l.date)} · ${esc(l.by||'')}${l.status==='done'?' · result: '+esc(l.result||'done'):''}</span></span><span class="pill ${l.status==='done'?'ok':'warn'}">${l.status==='done'?'Delivered':esc(l.stage||'Waiting')}</span>${l.status==='done'&&!ro&&!l.pickedAt?`<button class="btn small primary" data-labpick="${p.id}|${l.id}" type="button">✓ Picked up</button>`:''}${l.pickedAt?'<span class="pill ok">Picked up</span>':''}${l.status==='done'&&!ro&&waLink(p,'x')?`<a class="btn small" target="_blank" rel="noopener" href="${waLink(p,'Hello '+(p.first||'')+', your '+l.what.toLowerCase()+' is ready at our clinic. Please call us to book your visit.')}">Tell patient on WhatsApp</a>`:''}</div>`).join('')}</div>`:'<div class="empty">No lab requests yet.</div>'}</section>`;
 }
-function unitLoginHtml(){if(!LOCAL)return `<div class="hres" style="display:flex;flex-direction:column;gap:8px"><b>Add a lab or pharmacy login</b>
-      <p class="small muted" style="margin:0">Each person logs in with their own email and password, on their own computer, and sees only their own list.</p>
-      <ol style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px" class="small">
-        <li>Send them this invite code and the web address of this app:<div class="row" style="margin-top:4px"><span class="invite">${esc(clinic.invite_code||'')}</span><button class="btn small" type="button" data-act="copyCode">Copy code</button></div></li>
-        <li>They open the app, tap <b>Sign up</b> (their email and a password), then choose <b>Join a clinic</b>, type the code and a name such as “City Dental Lab”.</li>
-        <li>Come back here and tick their name under <b>Laboratory staff</b> (or <b>Pharmacy staff</b>) in Clinic &amp; account → Pharmacy and laboratory. <b>Do this straight away</b> – until you tick them they can see everything.</li>
-      </ol></div>`;
+function unitLoginHtml(){if(!LOCAL){const rows=staffInv.filter(x=>!x.used_by||x.unit).map(x=>`<div class="member"><span style="flex:1;min-width:0"><b>${esc(x.email)}</b><br><span class="small muted">${x.unit==='lab'?'Laboratory':x.unit==='pharmacy'?'Pharmacy':'Dentist'} · ${x.used_by?'joined ✓':'waiting – has not signed up yet'}</span></span>${x.used_by?'':`<button class="btn small" type="button" data-ivdel="${x.id}">Cancel</button>`}</div>`).join('');
+  return `<form id="inviteForm" class="hres" style="display:flex;flex-direction:column;gap:8px"><b>Invite a lab, pharmacy or dentist by email</b>
+      <p class="small muted" style="margin:0">Only the email you type here can join. The clinic code below does nothing for anyone else. A lab or pharmacy person sees only their own list, never patient files or phone numbers.</p>
+      <div class="grid2"><label class="f"><span>Name (e.g. the lab's name)</span><input type="text" id="iv-name" required placeholder="e.g. City Dental Lab"></label><label class="f"><span>Their email address</span><input type="email" id="iv-email" required autocapitalize="off" autocorrect="off" placeholder="lab@example.com"></label>
+      <label class="f"><span>They work as</span><select id="iv-unit"><option value="lab">Laboratory</option><option value="pharmacy">Pharmacy</option><option value="">Dentist (normal access)</option></select></label></div>
+      <div class="row"><button class="btn primary" type="submit">Invite this email</button></div>
+      <ol style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px" class="small">
+        <li>Tell them to open the app address and tap <b>Sign up</b> with <b>exactly this email</b> and a password of their choice.</li>
+        <li>That is all. They land straight in your clinic on their own list. No code, no “join”, nothing to choose.</li>
+        <li>A different email address cannot get in, even with the clinic code.</li>
+      </ol>
+      ${rows?`<div class="plist">${rows}</div>`:''}</form>`}
   return `<form id="unitLoginForm" class="hres" style="display:flex;flex-direction:column;gap:8px"><b>Add a lab or pharmacy login</b>
       <p class="small muted" style="margin:0">They log in from their own computer with this username and password and see only their own list – no patient files, no phone numbers.</p>
       <div class="grid2"><label class="f"><span>Name (e.g. the lab's name)</span><input type="text" id="ul-name" required placeholder="e.g. City Dental Lab"></label>
@@ -616,7 +624,9 @@ function normClinic(c){
 }
 async function afterLogin(prefer){
   view={screen:'loading',pid:null,tab:'details',tooth:null,q:'',confirm:null,msg:null,authTab:'login'};render();
-  const {data,error}=await sb.from('members').select('clinic_id,role,name,pmdc,clinics(id,name,address,phone,invite_code,reminder_template,created_at,licensed_at,license_name,reg_body,reg_no,ntn)').eq('user_id',user.id);
+  const mq=()=>sb.from('members').select('clinic_id,role,name,pmdc,clinics(id,name,address,phone,invite_code,reminder_template,created_at,licensed_at,license_name,reg_body,reg_no,ntn)').eq('user_id',user.id);
+  let {data,error}=await mq();
+  if(!error&&!LOCAL&&!(data||[]).filter(m=>m.clinics).length){try{const r=await sb.rpc('accept_my_invites');if(!r.error&&r.data){({data,error}=await mq())}}catch(e){}}
   if(error){view.screen='auth';view.msg={t:'err',m:friendly(error)};render();return}
   memberships=(data||[]).filter(m=>m.clinics);memberships.forEach(m=>normClinic(m.clinics));
   if(!memberships.length){view.screen='onboard';render();return}
@@ -627,7 +637,7 @@ async function openClinic(m){
   if(dirty.size)await flush();
   clinic=m.clinics;me={user_id:user.id,name:m.name,role:m.role,pmdc:m.pmdc||''};lsSet('clinicId',clinic.id);
   view.screen='loading';render();
-  try{db={patients:[]};await Promise.all([loadPatients(),loadTeam(),loadBranding(),loadBookingCfg()]);}
+  try{db={patients:[]};await Promise.all([loadPatients(),loadTeam(),loadBranding(),loadBookingCfg(),loadInvites()]);}
   catch(e){view.screen='error';view.msg={t:'err',m:friendly(e)};render();return}
   subscribe();
   setTimeout(prepareDaily,1500);startAttendance();loadMessages().then(()=>{const n=unreadCount();if(n){render();setTimeout(()=>toast('You have '+n+' new message'+(n>1?'s':'')+' – open Messages'),400)}});
@@ -3169,6 +3179,13 @@ document.addEventListener('submit',async e=>{
       await window.__LOCAL_DB.recover(v('rv-user'),v('rv-code'),$('#rv-pw').value);
       view.email=v('rv-user').toLowerCase();view.rvCode='';view.showRecover=false;view.msg={t:'ok',m:'Password changed. Log in with your new password.'};render();return;
     }
+    if(f.id==='inviteForm'){
+      const unit=$('#iv-unit').value,em=v('iv-email');
+      const {error}=await sb.rpc('invite_staff',{p_clinic:clinic.id,p_email:em,p_unit:unit||null,p_name:v('iv-name')||null});
+      if(error){if(/invite_staff|schema cache|does not exist/i.test(String(error.message||'')))throw new Error('Run the new SQL file “supabase-update-invites.sql” in Supabase first (SQL Editor → paste → Run).');throw error}
+      if(unit&&!unitsOf()[unit]){const u0=Object.assign({},unitsOf());u0[unit]=true;u0[unit==='lab'?'labSince':'phSince']=Date.now();await saveBranding({units:u0})}
+      await loadInvites();toast('Invited '+em.toLowerCase()+'. Only this email can join.');
+    }
     if(f.id==='unitLoginForm'){
       const unit=$('#ul-unit').value,nm=v('ul-name');
       if(!unitsOf()[unit]){const u0=Object.assign({},unitsOf());u0[unit]=true;u0[unit==='lab'?'labSince':'phSince']=u0[unit==='lab'?'labSince':'phSince']||Date.now();await saveBranding({units:u0})}
@@ -3314,6 +3331,7 @@ document.addEventListener('click',async e=>{
   if(d.rxgiven){const [pid,rid]=d.rxgiven.split('|');const pp=db.patients.find(x=>x.id===pid),rr=pp&&(pp.rx||[]).find(x=>x.id===rid);if(rr){rr.pharm={status:'given',by:me.name,at:Date.now()};markDirty(pid);render();toast('Marked as given')}return}
   if(d.labdone){const [pid,lid]=d.labdone.split('|');const pp=db.patients.find(x=>x.id===pid),ll=pp&&(pp.labs||[]).find(x=>x.id===lid);if(ll){const i=document.querySelector('[data-labres="'+lid+'"]');ll.status='done';ll.stage='Delivered';ll.result=i?i.value.trim():'';ll.doneBy=me.name;ll.doneAt=Date.now();markDirty(pid);render();toast('Marked as done');try{await labTell(pp,ll,'Delivered by the lab: '+ll.what+' for '+pp.first+' '+pp.last+(ll.result?' – '+ll.result:''))}catch(e){}}return}
   if(d.act==='labAdd'){const pp=P();if(!pp)return;const what=$('#lab-what').value,note=($('#lab-note').value||'').trim();const l={id:uid(),what,note,date:today(),at:Date.now(),by:me.name,byId:user.id,status:'requested'};pp.labs=pp.labs||[];pp.labs.push(l);save();render();toast('Sent to the lab');notifyUnit('lab','Lab request for '+labCase(pp).replace(/&middot;/g,'·')+': '+what+(note?' – '+note:''),pp.id);return}
+  if(d.ivdel){const {error}=await sb.from('staff_invites').delete().eq('id',d.ivdel);if(error){toast(friendly(error));return}await loadInvites();render();toast('Invitation cancelled');return}
   if(d.act==='unitFormToggle'){earn.unitForm=!earn.unitForm;render();return}
   if(d.labpick){const [pid,lid]=d.labpick.split('|');const pp=db.patients.find(x=>x.id===pid),ll=pp&&(pp.labs||[]).find(x=>x.id===lid);if(ll){ll.pickedAt=Date.now();ll.pickedBy=me.name;markDirty(pid);render();toast('Marked as picked up – the lab is told');notifyUnit('lab','Picked up by the clinic: '+ll.what+' ('+labCase(pp).replace(/&middot;/g,'·')+')',pid)}return}
   if(d.act==='orthoSuggest'){const pp=P();if(!pp)return;const io=orInterpret(pp);const L=[];const x=(k)=>pp.ortho&&pp.ortho[k];
