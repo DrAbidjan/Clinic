@@ -259,7 +259,7 @@ async function notifyUnit(unit,text,patientId){
 const LAB_KINDS=['Blood test','Biopsy / histopathology','Culture & sensitivity','X-ray report / OPG reading','Crown / bridge / denture (dental lab)','Other'];
 const LAB_STAGES=['Received','In progress','Ready for try-in','Quality check','Delivered'];
 const waLink=(p,text)=>{let n=String(p.phone||'').replace(/[^\d]/g,'');if(!n)return '';if(n.startsWith('00'))n=n.slice(2);else if(n.startsWith('0'))n='92'+n.slice(1);return 'https://wa.me/'+n+'?text='+encodeURIComponent(text)};
-async function labTell(pp,ll,text){const skip=new Set([user.id].concat(staffIds('lab'),staffIds('pharmacy')));const to=new Set((team||[]).map(t=>t.user_id).filter(id=>id&&!skip.has(id)));if(ll.byId&&ll.byId!==user.id)to.add(ll.byId);for(const id of to){try{await sendMessage(id,text,{kind:'lab',patient_id:pp.id})}catch(e){}}}
+async function labTell(pp,ll,text){const skip=new Set([user.id].concat(staffIds('lab'),staffIds('pharmacy')));const to=new Set((team||[]).map(t=>t.user_id).filter(id=>id&&!skip.has(id)));if(ll.byId&&ll.byId!==user.id)to.add(ll.byId);for(const id of to){try{await sendMessage(id,text,{kind:'labclinic',patient_id:pp.id})}catch(e){}}}
 const labCase=p=>{const ini=((p.first||'').slice(0,1)+(p.last||'').slice(0,1)).toUpperCase();const a=p.dob?age(p.dob):'';return esc('Patient '+ini+(a!==''?' · '+a+' yrs':'')+(p.sex==='F'?' · F':p.sex==='M'?' · M':''))};
 function pName(p){return esc((p.first||'')+' '+(p.last||''))}
 const isPS=()=>pharmOn()&&!!me&&staffIds('pharmacy').includes(me.user_id),isLS=()=>labOn()&&!!me&&staffIds('lab').includes(me.user_id);
@@ -568,9 +568,9 @@ function subscribe(){
     if(pl.eventType==='INSERT'&&b){Sound.play('arrival');const t=$('#toast');t.textContent='New online booking: '+b.name+' – '+fmtDate(dayOf(b.starts_at))+' at '+hhmm(b.starts_at);t.className='toast success';t.hidden=false;clearTimeout(toast._t);toast._t=setTimeout(()=>t.hidden=true,7000)}
   }).on('postgres_changes',{event:'INSERT',schema:'public',table:'messages',filter:'clinic_id=eq.'+clinic.id},pl=>{
     const m=pl.new;if(!m||msgs.some(x=>x.id===m.id))return;msgs.push(m);
-    if(forMe(m)&&m.sender!==user.id){Sound.play(m.kind==='arrived'||m.kind==='rx'||m.kind==='lab'?'arrival':'message');
+    if(forMe(m)&&m.sender!==user.id){Sound.play(m.kind==='arrived'||m.kind==='rx'||m.kind==='lab'||m.kind==='labclinic'?'arrival':'message');
       if(view.screen==='msgs')markRead().then(()=>softRender());
-      else{const t=$('#toast');t.textContent=(m.kind==='arrived'?'':m.kind==='rx'?'💊 ':m.kind==='lab'?'🧪 ':'New message from '+m.sender_name+': ')+m.body;t.className='toast success';t.hidden=false;clearTimeout(toast._t);toast._t=setTimeout(()=>t.hidden=true,5000);softRender()}}
+      else{const t=$('#toast');t.textContent=(m.kind==='arrived'?'':m.kind==='rx'?'💊 ':(m.kind==='lab'||m.kind==='labclinic')?'🧪 ':'New message from '+m.sender_name+': ')+m.body;t.className='toast success';t.hidden=false;clearTimeout(toast._t);toast._t=setTimeout(()=>t.hidden=true,5000);softRender()}}
   }).subscribe();
 }
 document.addEventListener('visibilitychange',async()=>{
@@ -1068,7 +1068,7 @@ function homeNav(active){return `<nav class="tabs homenav desk-hide" role="tabli
 /* Team messages on this device: "patient arrived" notes and messages between staff. */
 let msgs=[];
 async function loadMessages(){if(!clinic)return;const {data}=await sb.from('messages').select('*').eq('clinic_id',clinic.id).order('created_at');msgs=(data||[]).slice(-300)}
-const forMe=m=>(m.recipient==='all'||m.recipient===user.id);
+const forMe=m=>(m.recipient==='all'||m.recipient===user.id)&&!(m.kind==='labclinic'&&isLS()&&!isAdmin());
 const unreadCount=()=>msgs.filter(m=>forMe(m)&&m.sender!==user.id&&!(m.read_by||[]).includes(user.id)).length;
 async function sendMessage(to,text,extra){
   const row=Object.assign({clinic_id:clinic.id,sender:user.id,sender_name:me.name,recipient:to,body:String(text).trim(),read_by:[user.id]},LOCAL?{created_at:new Date().toISOString()}:{},extra||{});
