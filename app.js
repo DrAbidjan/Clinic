@@ -289,7 +289,7 @@ function labView(){
     <label class="f"><span>Result / note for the dentist</span><input type="text" data-labres="${l.id}" placeholder="e.g. Hb 13.2 – normal, report attached in X-rays"></label>
     <div class="row"><button class="btn small primary" data-labdone="${p.id}|${l.id}">✓ Delivered / done</button>${pharmOnly()?'':`<button class="btn small" data-open="${p.id}">Open patient</button>`}</div></div>`).join(''):'<div class="empty">No lab requests waiting.</div>'}
   </section>
-  ${g.length?`<section class="panel"><h3>Recently done</h3><div class="plist">${g.map(({p,l})=>`<div class="member"><span style="flex:1;min-width:0"><b>${pharmOnly()?labCase(p):pName(p)}</b> · ${esc(l.what)}<br><span class="small muted">${l.result?esc(l.result)+' · ':''}done ${fmtDate(dayOf(l.doneAt))} by ${esc(l.doneBy||'')}</span></span></div>`).join('')}</div></section>`:''}`;
+  ${g.length?`<section class="panel"><h3>Recently done</h3><div class="plist">${g.map(({p,l})=>`<div class="member"><span style="flex:1;min-width:0"><b>${pharmOnly()?labCase(p):pName(p)}</b> · ${esc(l.what)}<br><span class="small muted">${l.result?esc(l.result)+' · ':''}done ${fmtDate(dayOf(l.doneAt))} by ${esc(l.doneBy||'')}${l.pickedAt?' · picked up by the clinic ✓':''}</span></span></div>`).join('')}</div></section>`:''}`;
 }
 function labTab(p){
   p.labs=p.labs||[];const ro=isAcct()||readOnly();const list=p.labs.slice().sort((a,b)=>(b.at||0)-(a.at||0));
@@ -298,8 +298,15 @@ function labTab(p){
     <label class="f"><span>Details (optional)</span><input type="text" id="lab-note" placeholder="e.g. HbA1c before extraction · crown shade A2, tooth 36"></label>
     <div class="row"><button class="btn primary" data-act="labAdd">Send to the lab</button>${(staffIds('lab').length)?'':'<span class="small muted">The lab sees it in its list.</span>'}</div></section>`}
   <section class="panel"><h3>Lab requests for this patient</h3>
-  ${list.length?`<div class="plist">${list.map(l=>`<div class="member"><span style="flex:1;min-width:0"><b>${esc(l.what)}</b>${l.note?' – '+esc(l.note):''}<br><span class="small muted">${fmtDate(l.date)} · ${esc(l.by||'')}${l.status==='done'?' · result: '+esc(l.result||'done'):''}</span></span><span class="pill ${l.status==='done'?'ok':'warn'}">${l.status==='done'?'Delivered':esc(l.stage||'Waiting')}</span>${l.status==='done'&&!ro&&waLink(p,'x')?`<a class="btn small" target="_blank" rel="noopener" href="${waLink(p,'Hello '+(p.first||'')+', your '+l.what.toLowerCase()+' is ready at our clinic. Please call us to book your visit.')}">Tell patient on WhatsApp</a>`:''}</div>`).join('')}</div>`:'<div class="empty">No lab requests yet.</div>'}</section>`;
+  ${list.length?`<div class="plist">${list.map(l=>`<div class="member"><span style="flex:1;min-width:0"><b>${esc(l.what)}</b>${l.note?' – '+esc(l.note):''}<br><span class="small muted">${fmtDate(l.date)} · ${esc(l.by||'')}${l.status==='done'?' · result: '+esc(l.result||'done'):''}</span></span><span class="pill ${l.status==='done'?'ok':'warn'}">${l.status==='done'?'Delivered':esc(l.stage||'Waiting')}</span>${l.status==='done'&&!ro&&!l.pickedAt?`<button class="btn small primary" data-labpick="${p.id}|${l.id}" type="button">✓ Picked up</button>`:''}${l.pickedAt?'<span class="pill ok">Picked up</span>':''}${l.status==='done'&&!ro&&waLink(p,'x')?`<a class="btn small" target="_blank" rel="noopener" href="${waLink(p,'Hello '+(p.first||'')+', your '+l.what.toLowerCase()+' is ready at our clinic. Please call us to book your visit.')}">Tell patient on WhatsApp</a>`:''}</div>`).join('')}</div>`:'<div class="empty">No lab requests yet.</div>'}</section>`;
 }
+function unitLoginHtml(){return `<form id="unitLoginForm" class="hres" style="display:flex;flex-direction:column;gap:8px"><b>Add a lab or pharmacy login</b>
+      <p class="small muted" style="margin:0">They log in from their own computer with this username and password and see only their own list – no patient files, no phone numbers.</p>
+      <div class="grid2"><label class="f"><span>Name (e.g. the lab's name)</span><input type="text" id="ul-name" required placeholder="e.g. City Dental Lab"></label>
+      <label class="f"><span>Department</span><select id="ul-unit"><option value="lab">Laboratory</option><option value="pharmacy">Pharmacy</option></select></label>
+      <label class="f"><span>Username</span><input type="text" id="ul-user" required autocapitalize="off" autocorrect="off" autocomplete="off" placeholder="e.g. citylab"></label>
+      <label class="f"><span>Password (at least 8 characters)</span><input type="password" id="ul-pw" required minlength="8" autocomplete="new-password"></label></div>
+      <div class="row"><button class="btn primary" type="submit">Create login</button></div></form>`}
 function unitsPanel(){
   const u=unitsOf();const mem=team||[];
   const staffBox=(unit,label)=>`<div class="small" style="margin-top:4px"><b>${label} staff</b> – these people get a pop-up and sound when something arrives:</div><div class="chips">${mem.map(t=>`<label class="chip"><input type="checkbox" data-unitstaff="${unit}" value="${t.user_id}" ${staffIds(unit).includes(t.user_id)?'checked':''} style="width:18px;height:18px;margin:0"> ${esc(t.name)}</label>`).join('')||'<span class="small muted">Add team members first.</span>'}</div>`;
@@ -307,12 +314,7 @@ function unitsPanel(){
     <label class="row small" style="gap:8px"><input type="checkbox" id="unit-pharmacy" ${u.pharmacy?'checked':''} style="width:20px;height:20px"> Pharmacy – sees every new prescription and marks it as given</label>
     <label class="row small" style="gap:8px"><input type="checkbox" id="unit-lab" ${u.lab?'checked':''} style="width:20px;height:20px"> Laboratory – receives lab requests from the dentists</label>
     ${u.pharmacy?staffBox('pharmacy','Pharmacy'):''}${u.lab?staffBox('lab','Laboratory'):''}
-    ${(u.pharmacy||u.lab)?`<form id="unitLoginForm" class="hres" style="display:flex;flex-direction:column;gap:8px"><b>Create a login for pharmacy or lab staff</b>
-      <div class="grid2"><label class="f"><span>Name</span><input type="text" id="ul-name" required placeholder="e.g. Imran (pharmacy)"></label>
-      <label class="f"><span>Department</span><select id="ul-unit">${u.pharmacy?'<option value="pharmacy">Pharmacy</option>':''}${u.lab?'<option value="lab">Laboratory</option>':''}</select></label>
-      <label class="f"><span>Username</span><input type="text" id="ul-user" required autocapitalize="off" autocorrect="off" autocomplete="off" placeholder="e.g. pharmacy1"></label>
-      <label class="f"><span>Password (at least 8 characters)</span><input type="password" id="ul-pw" required minlength="8" autocomplete="new-password"></label></div>
-      <div class="row"><button class="btn primary" type="submit">Create login</button></div></form>`:''}
+    ${unitLoginHtml()}
     ${(u.pharmacy||u.lab)?'<p class="small muted" style="margin:0">Give each pharmacy or lab person their own login (Team below, role <b>Dentist</b>) and tick them above. A ticked pharmacy person sees only the prescription list: no patient files, no phone numbers, no other menus.</p>':''}</div>`;
 }
 function deptPanel(){
@@ -1699,7 +1701,8 @@ function earnStaff(D){
       <td><div class="row" style="flex-wrap:nowrap;gap:4px">${paid?`<button class="btn small primary" data-salslip="${s.id}">${icon('doc')} Receipt</button><button class="btn small" data-salunpaid="${r.id}">Mark unpaid</button>`:`<button class="btn small primary" data-salpaid="${r.id}" data-amt="${due}">Mark paid</button>`}<button class="btn small" data-staffedit="${r.id}">Edit</button></div></td></tr>
       ${earn.salForm&&earn.salForm.staff_id===r.id?`<tr><td colspan="5">${salFormHtml(r,month)}</td></tr>`:''}`}).join('');
   const e=earn.staffEdit?finOf('staff').find(r=>r.id===earn.staffEdit):null;const ed=e?e.data:(earn.staffNew?{role:'Assistant',pay:'fixed'}:null);
-  return `<div class="row" style="gap:8px;flex-wrap:wrap"><p class="small muted" style="margin:0">Salaries for <b>${esc(mLabel)}</b> (change the month with ‹ › above, in Monthly view).</p><span class="spacer"></span><button class="btn small primary" data-act="staffNew">+ Add staff</button></div>
+  return `<div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn small" type="button" data-act="unitFormToggle">${earn.unitForm?'Close':'+ Add lab / pharmacy login'}</button></div>${earn.unitForm?unitLoginHtml():''}
+    <div class="row" style="gap:8px;flex-wrap:wrap"><p class="small muted" style="margin:0">Salaries for <b>${esc(mLabel)}</b> (change the month with ‹ › above, in Monthly view).</p><span class="spacer"></span><button class="btn small primary" data-act="staffNew">+ Add staff</button></div>
     ${ed?`<form id="staffForm" class="subpanel"><h3 style="margin:0">${e?'Edit '+esc(ed.name):'Add staff member'}</h3>
       <div class="grid3">
         <label class="f"><span>Name</span><input type="text" id="sf-name" value="${esc(ed.name||'')}" required list="sf-team"><datalist id="sf-team">${team.map(t=>`<option value="${esc(t.name)}">`).join('')}</datalist></label>
@@ -3161,6 +3164,7 @@ document.addEventListener('submit',async e=>{
     }
     if(f.id==='unitLoginForm'){
       const unit=$('#ul-unit').value,nm=v('ul-name');
+      if(!unitsOf()[unit]){const u0=Object.assign({},unitsOf());u0[unit]=true;u0[unit==='lab'?'labSince':'phSince']=u0[unit==='lab'?'labSince':'phSince']||Date.now();await saveBranding({units:u0})}
       const {error}=await sb.rpc('add_dentist',{p_clinic:clinic.id,p_name:nm,p_username:v('ul-user'),p_password:$('#ul-pw').value,p_role:'dentist',p_pmdc:''});if(error)throw error;
       await loadTeam();const nu=team.slice().reverse().find(t=>t.name===nm&&t.user_id!==user.id);
       if(nu){const key=unit==='pharmacy'?'pharmaStaff':'labStaff';await deptSave({[key]:staffIds(unit).concat([nu.user_id])})}
@@ -3303,6 +3307,8 @@ document.addEventListener('click',async e=>{
   if(d.rxgiven){const [pid,rid]=d.rxgiven.split('|');const pp=db.patients.find(x=>x.id===pid),rr=pp&&(pp.rx||[]).find(x=>x.id===rid);if(rr){rr.pharm={status:'given',by:me.name,at:Date.now()};markDirty(pid);render();toast('Marked as given')}return}
   if(d.labdone){const [pid,lid]=d.labdone.split('|');const pp=db.patients.find(x=>x.id===pid),ll=pp&&(pp.labs||[]).find(x=>x.id===lid);if(ll){const i=document.querySelector('[data-labres="'+lid+'"]');ll.status='done';ll.stage='Delivered';ll.result=i?i.value.trim():'';ll.doneBy=me.name;ll.doneAt=Date.now();markDirty(pid);render();toast('Marked as done');try{await labTell(pp,ll,'Delivered by the lab: '+ll.what+' for '+pp.first+' '+pp.last+(ll.result?' – '+ll.result:''))}catch(e){}}return}
   if(d.act==='labAdd'){const pp=P();if(!pp)return;const what=$('#lab-what').value,note=($('#lab-note').value||'').trim();const l={id:uid(),what,note,date:today(),at:Date.now(),by:me.name,byId:user.id,status:'requested'};pp.labs=pp.labs||[];pp.labs.push(l);save();render();toast('Sent to the lab');notifyUnit('lab','Lab request for '+labCase(pp).replace(/&middot;/g,'·')+': '+what+(note?' – '+note:''),pp.id);return}
+  if(d.act==='unitFormToggle'){earn.unitForm=!earn.unitForm;render();return}
+  if(d.labpick){const [pid,lid]=d.labpick.split('|');const pp=db.patients.find(x=>x.id===pid),ll=pp&&(pp.labs||[]).find(x=>x.id===lid);if(ll){ll.pickedAt=Date.now();ll.pickedBy=me.name;markDirty(pid);render();toast('Marked as picked up – the lab is told');notifyUnit('lab','Picked up by the clinic: '+ll.what+' ('+labCase(pp).replace(/&middot;/g,'·')+')',pid)}return}
   if(d.act==='orthoSuggest'){const pp=P();if(!pp)return;const io=orInterpret(pp);const L=[];const x=(k)=>pp.ortho&&pp.ortho[k];
     const anb=orn(pp,'anb')!=null?orn(pp,'anb'):(orn(pp,'sna')!=null&&orn(pp,'snb')!=null?orn(pp,'sna')-orn(pp,'snb'):null);
     if(anb!=null)L.push('Skeletal Class '+(anb>4?'II':anb<0?'III':'I'));const oj=orn(pp,'overjet'),ob=orn(pp,'overbite');if(oj!=null&&oj>4)L.push('Increased overjet');if(oj!=null&&oj<0)L.push('Reverse overjet');if(ob!=null&&ob>4)L.push('Deep bite');if(ob!=null&&ob<0)L.push('Anterior open bite');
