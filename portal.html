@@ -1,0 +1,70 @@
+<!doctype html>
+<!-- Clinic Patient Records – patient portal. © 2026 Dr Abid Ali. All rights reserved. Proprietary – see LICENSE.txt. -->
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex"><meta name="theme-color" content="#0B2227">
+<title>Patient portal</title>
+<style>
+:root{--bg:#f3f5f4;--paper:#fff;--ink:#18232a;--muted:#5d6b72;--line:#d9e0de;--accent:#1f5f6b;--accent-soft:#e1eeef;--alert:#b3261e;--alert-soft:#fbe9e7;--ok:#2e7d4f;--ok-soft:#e3f2e8}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1517;--paper:#172024;--ink:#e4ecee;--muted:#93a3a9;--line:#2a373c;--accent:#6fb8c4;--accent-soft:#1d3338;--alert:#ff8a80;--alert-soft:#3a1d1b;--ok:#7fd1a0;--ok-soft:#173023;color-scheme:dark}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
+header{background:#0B2227;color:#F4F6F4;padding:18px 16px}header h1{margin:0;font-size:1.25rem}header p{margin:2px 0 0;color:#7FD3CB;font-size:.9rem}
+main{max-width:640px;margin:0 auto;padding:16px;display:flex;flex-direction:column;gap:14px}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:10px}
+h2{margin:0;font-size:1.05rem}label{display:flex;flex-direction:column;gap:4px;font-size:.9rem;color:var(--muted)}
+input{font:inherit;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);width:100%}
+button,.btn{font:inherit;font-weight:600;padding:12px 16px;border-radius:10px;border:0;background:var(--accent);color:#fff;cursor:pointer;text-align:center;text-decoration:none;display:inline-block}
+button.alt,.btn.alt{background:var(--accent-soft);color:var(--accent)}
+.msg{padding:10px 12px;border-radius:10px;background:var(--alert-soft);color:var(--alert);font-size:.95rem}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.muted{color:var(--muted);font-size:.9rem}
+.item{border-top:1px solid var(--line);padding-top:10px}.item:first-of-type{border-top:0;padding-top:0}
+.pill{display:inline-block;padding:2px 10px;border-radius:99px;font-size:.8rem;background:var(--accent-soft);color:var(--accent)}.pill.ok{background:var(--ok-soft);color:var(--ok)}
+ul{margin:4px 0 0;padding-left:20px}
+</style></head><body>
+<header><h1 id="ttl">Patient portal</h1><p id="sub">Your appointments and prescriptions</p></header>
+<main id="main"></main>
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script>
+(function(){
+const main=document.getElementById('main'),code=new URLSearchParams(location.search).get('c')||'';
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pad=n=>String(n).padStart(2,'0');
+let sb=null,tz=300;
+const C=window.CLINIC_CONFIG;
+function ymd(d){return pad(d.getUTCDate())+'/'+pad(d.getUTCMonth()+1)+'/'+d.getUTCFullYear()}
+function hm(d){let h=d.getUTCHours();const ap=h>=12?'pm':'am';h=(h+11)%12+1;return h+':'+pad(d.getUTCMinutes())+' '+ap}
+const local=iso=>new Date(new Date(iso).getTime()+tz*60000);
+function loginView(msg){
+  main.innerHTML=`<form class="card" id="f"><h2>Log in</h2><p class="muted" style="margin:0">Use the mobile number the clinic has for you and the 6-digit PIN the clinic gave you.</p>
+  ${msg?`<div class="msg">${esc(msg)}</div>`:''}
+  <label>Mobile number<input id="ph" type="tel" inputmode="tel" autocomplete="tel" required placeholder="0300 1234567"></label>
+  <label>PIN (6 numbers)<input id="pin" type="password" inputmode="numeric" maxlength="6" pattern="[0-9]{6}" autocomplete="one-time-code" required></label>
+  <button type="submit">Log in</button><p class="muted" style="margin:0">No PIN yet? Ask the clinic. Nobody else can see your records.</p></form>`;
+  document.getElementById('f').addEventListener('submit',async e=>{e.preventDefault();const btn=e.target.querySelector('button');btn.disabled=true;btn.textContent='Please wait…';
+    try{const {data,error}=await sb.rpc('portal_view',{p_code:code,p_phone:document.getElementById('ph').value,p_pin:document.getElementById('pin').value});
+      if(error){const m=String(error.message||'');loginView(/portal_view|schema cache|does not exist/i.test(m)?'The portal is not switched on yet. Please call the clinic.':'Something went wrong. Please try again.');return}
+      if(!data||!data.ok){loginView('Number or PIN not correct. After 5 wrong tries the login waits 15 minutes.');return}
+      show(data)}catch(err){loginView('No internet connection. Please try again.')}});
+}
+function show(d){
+  tz=+d.tz||300;document.getElementById('ttl').textContent=d.clinic||'Patient portal';document.getElementById('sub').textContent=d.name?('Hello, '+d.name):'Your records';
+  const now=Date.now();const ap=d.appointments||[];
+  const up=ap.filter(a=>new Date(a.at).getTime()>=now&&a.status!=='cancelled'),past=ap.filter(a=>new Date(a.at).getTime()<now||a.status==='cancelled').reverse();
+  const aItem=a=>{const t=local(a.at);return `<div class="item"><b>${ymd(t)} · ${hm(t)}</b> <span class="pill ${a.status==='cancelled'?'':'ok'}">${esc(a.status==='cancelled'?'Cancelled':'Booked')}</span><div class="muted">${esc(a.reason||'')}</div></div>`};
+  const rx=(d.prescriptions||[]).map(r=>`<div class="item"><b>${esc(r.date?r.date.split('-').reverse().join('/'):'')}</b>${r.by?' · '+esc(r.by):''}${r.diag?`<div class="muted">${esc(r.diag)}</div>`:''}
+    <ul>${(r.items||[]).map(i=>`<li><b>${esc(i.name)}</b>${i.dose?' – '+esc(i.dose):''}${i.days?' · '+esc(i.days)+(/^\d+$/.test(String(i.days).trim())?' days':''):''}${i.note?' · '+esc(i.note):''}</li>`).join('')}</ul>${r.advice?`<div class="muted">${esc(r.advice)}</div>`:''}</div>`).join('');
+  const labs=(d.labs||[]).map(l=>{const t=l.date?new Date(+l.date||l.date):null;return `<div class="item"><b>${esc(l.what)}</b> <span class="pill ok">Ready${l.picked?' · collected':' – please collect'}</span>${t&&!isNaN(t)?`<div class="muted">${ymd(local(t.toISOString()))}</div>`:''}</div>`}).join('');
+  main.innerHTML=`<div class="card"><h2>Next appointments</h2>${up.length?up.map(aItem).join(''):'<p class="muted" style="margin:0">No appointment booked.</p>'}
+    <a class="btn" href="book.html?c=${encodeURIComponent(code)}">Book a new appointment</a></div>
+  ${labs?`<div class="card"><h2>Lab work ready</h2>${labs}</div>`:''}
+  <div class="card"><h2>My prescriptions</h2>${rx||'<p class="muted" style="margin:0">No prescriptions yet.</p>'}</div>
+  ${past.length?`<div class="card"><h2>Past appointments</h2>${past.slice(0,10).map(aItem).join('')}</div>`:''}
+  <button class="alt" id="out">Log out</button>`;
+  document.getElementById('out').onclick=()=>{loginView('');document.getElementById('ttl').textContent='Patient portal';document.getElementById('sub').textContent='Your appointments and prescriptions'};
+}
+function fail(t){main.innerHTML=`<div class="card"><div class="msg">${esc(t)}</div></div>`}
+if(!code){fail('This link is not complete. Please use the link the clinic sent you.');return}
+if(!C||!window.supabase||/PASTE/.test(C.SUPABASE_URL||'')){fail('The portal is not available right now. Please call the clinic.');return}
+sb=window.supabase.createClient(C.SUPABASE_URL,C.SUPABASE_ANON_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
+loginView('');
+})();
+</script></body></html>

@@ -7,7 +7,7 @@
 const CONFIG=window.CLINIC_CONFIG||{SUPABASE_URL:'',SUPABASE_ANON_KEY:''};
 const LOCAL=!!window.__LOCAL_DB;
 /* Seller details shown on the Activation screen. Fill these in (keep the quote marks). */
-const APP_VERSION='17 Oct 2026 · orthodontic department, pharmacy privacy';
+const APP_VERSION='17 Oct 2026 · patient portal';
 const SELLER={name:'',whatsapp:'03113124533',price:'Rs 25,000'};
 
 const $=s=>document.querySelector(s);
@@ -329,7 +329,7 @@ function unitsPanel(){
     <label class="row small" style="gap:8px"><input type="checkbox" id="unit-pharmacy" ${u.pharmacy?'checked':''} style="width:20px;height:20px"> Pharmacy – sees every new prescription and marks it as given</label>
     <label class="row small" style="gap:8px"><input type="checkbox" id="unit-lab" ${u.lab?'checked':''} style="width:20px;height:20px"> Laboratory – receives lab requests from the dentists</label>
     ${u.pharmacy?staffBox('pharmacy','Pharmacy'):''}${u.lab?staffBox('lab','Laboratory'):''}
-    ${unitLoginHtml()}
+    ${LOCAL?unitLoginHtml():''}
     ${(u.pharmacy||u.lab)?'<p class="small muted" style="margin:0">Give each pharmacy or lab person their own login (Team below, role <b>Dentist</b>) and tick them above. A ticked pharmacy person sees only the prescription list: no patient files, no phone numbers, no other menus.</p>':''}</div>`;
 }
 function deptPanel(){
@@ -1988,12 +1988,16 @@ let loginAt=null;
 async function startAttendance(){
   if(!clinic||!me)return;loginAt=new Date().toISOString();
   try{const {data:open}=await sb.from('attendance').select('*').eq('clinic_id',clinic.id).eq('user_id',user.id);
-    for(const r of (open||[]).filter(r=>!r.ended_at))await sb.from('attendance').update({ended_at:r.last_seen||r.started_at,auto:true}).eq('id',r.id);
-    const t0=new Date().toISOString();const {data}=await sb.from('attendance').insert({clinic_id:clinic.id,user_id:user.id,name:me.name,role:me.role,started_at:t0,last_seen:t0,ended_at:null});
-    attId=data&&data[0]&&data[0].id;}catch(e){}
-  clearInterval(attT);attT=setInterval(()=>{if(attId)sb.from('attendance').update({last_seen:new Date().toISOString()}).eq('id',attId)},5*60*1000);
+    const opens=(open||[]).filter(r=>!r.ended_at).sort((a,b)=>String(b.last_seen||b.started_at).localeCompare(String(a.last_seen||a.started_at)));
+    const keep=opens.find(r=>Date.now()-new Date(r.last_seen||r.started_at)<30*60*1000);
+    for(const r of opens.filter(r=>r!==keep))await sb.from('attendance').update({ended_at:r.last_seen||r.started_at,auto:true}).eq('id',r.id);
+    if(keep){attId=keep.id;loginAt=keep.started_at;await sb.from('attendance').update({last_seen:new Date().toISOString()}).eq('id',keep.id)}
+    else{const t0=new Date().toISOString();const {data}=await sb.from('attendance').insert({clinic_id:clinic.id,user_id:user.id,name:me.name,role:me.role,started_at:t0,last_seen:t0,ended_at:null});
+    attId=data&&data[0]&&data[0].id;}}catch(e){}
+  clearInterval(attT);attT=setInterval(()=>{if(attId)sb.from('attendance').update({last_seen:new Date().toISOString()}).eq('id',attId)},60*1000);
 }
 async function endAttendance(){clearInterval(attT);if(attId){try{await sb.from('attendance').update({ended_at:new Date().toISOString(),last_seen:new Date().toISOString()}).eq('id',attId)}catch(e){}}attId=null}
+window.addEventListener('pagehide',()=>{if(attId)try{sb.from('attendance').update({last_seen:new Date().toISOString()}).eq('id',attId)}catch(e){}});
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'&&attId)sb.from('attendance').update({last_seen:new Date().toISOString()}).eq('id',attId)});
 async function loadAttendance(day){
   const s=new Date(day+'T00:00:00'),e=new Date(s);e.setDate(e.getDate()+1);
@@ -2180,9 +2184,9 @@ function settingsView(){
   ${LOCAL?addDentistHtml(admin):''}
   ${admin||isAcct()?attendancePanel():''}
   ${LOCAL&&admin?recoveryPanel():''}
-  <section class="panel" ${LOCAL?'hidden':''}>
+  <section class="panel" hidden>
     <h3>Invite dentists, lab and pharmacy</h3>
-    ${admin&&!LOCAL?unitLoginHtml():admin?`<p class="small muted" style="margin:0">Send this code to a dentist. They create an account, choose “Join a clinic” and enter it.</p>
+    ${admin&&!LOCAL?'<p class="small muted" style="margin:0">Invitations are made in Earnings → Staff &amp; salaries → + Add lab / pharmacy login.</p>':admin?`<p class="small muted" style="margin:0">Send this code to a dentist. They create an account, choose “Join a clinic” and enter it.</p>
     <div class="row"><span class="invite" id="invite">${esc(clinic.invite_code)}</span><span class="spacer"></span><button class="btn small" data-act="copyCode">Copy</button>
     ${view.confirm==='newcode'?`<button class="btn small" data-act="cancelConfirm">Keep code</button><button class="btn small danger" data-act="newCode">Make new code</button>`:`<button class="btn small" data-act="askNewCode">New code</button>`}</div>
     ${view.confirm==='newcode'?'<p class="small" style="margin:0">The old code will stop working. People already in the clinic stay.</p>':''}`
@@ -2493,6 +2497,20 @@ function patientView(){
 }
 
 function fld(id,label,val,type='text',extra=''){return `<label class="f"><span>${label}</span><input type="${type}" data-f="${id}" id="f-${id}" value="${esc(val)}" ${extra}></label>`}
+const portalLink=()=>booking.code?location.origin+location.pathname.replace(/[^/]*$/,'')+'portal.html?c='+encodeURIComponent(booking.code):'';
+function portalPanel(p){
+  if(LOCAL)return '';
+  const pin=view.portalPin&&view.portalPin.id===p.id?view.portalPin.pin:'';
+  const ro=isAcct()||readOnly();
+  const msgTxt=pin?'Hello '+(p.first||'')+', you can see your appointments and prescriptions here: '+portalLink()+' – log in with your mobile number and this PIN: '+pin+'. Please keep the PIN private.':'';
+  const wa=pin&&p.phone?waLink(p,msgTxt):'';
+  return `<section class="panel"><h3>Patient portal</h3>
+    <p class="small muted" style="margin:0">The patient logs in with their mobile number and a 6-digit PIN and sees only their own appointments, prescriptions and lab work that is ready.</p>
+    ${pin?`<div class="msg ok" style="margin:0">PIN for ${esc(p.first||'')}: <b style="font-size:1.4rem;letter-spacing:.15em">${pin}</b><br><span class="small">Shown only now. A new PIN replaces the old one.</span></div>
+    <div class="row">${wa?`<a class="btn small primary" target="_blank" rel="noopener" href="${wa}">Send on WhatsApp</a>`:'<span class="small muted">Add the mobile number above to send it on WhatsApp.</span>'}</div>`:''}
+    ${ro?'':`<div class="row"><button class="btn small" type="button" data-act="portalPin">${pin?'Make another PIN':'Create portal PIN'}</button></div>`}
+  </section>`;
+}
 function detailsTab(p){
   const isNew=!p.oldFile&&!p.since&&p.notes.length===0&&p.plan.length===0;
   return `${isNew&&!p.paperEntry?`<div class="msg ok">Adding a patient from your old records? Fill in <b>Old records</b> below, then add past treatment in the <b>Treatment plan</b> with "Already done on", and photograph the old file in <b>X-rays</b> as "Old record (scan)".</div>`:''}
@@ -2516,6 +2534,7 @@ function detailsTab(p){
     ${fld('insNo','Card / panel number',p.insNo)}</div>
     ${fld('gp','Family doctor / physician',p.gp)}${fld('emergency','Emergency contact',p.emergency)}
   </section>
+  ${portalPanel(p)}
   <section class="panel">
     <h3>Delete record</h3>
     ${view.confirm==='delete'?`<div class="confirm">Delete ${esc(p.first)} ${esc(p.last)} and all their records for everyone in the clinic? This cannot be undone.<span class="spacer"></span><button class="btn small" data-act="cancelConfirm">Cancel</button><button class="btn small danger" data-act="deletePatient">Delete</button></div>`:`<div class="row"><button class="btn danger" data-act="askDelete">Delete patient</button></div>`}
@@ -3333,6 +3352,14 @@ document.addEventListener('click',async e=>{
   if(d.labdone){const [pid,lid]=d.labdone.split('|');const pp=db.patients.find(x=>x.id===pid),ll=pp&&(pp.labs||[]).find(x=>x.id===lid);if(ll){const i=document.querySelector('[data-labres="'+lid+'"]');ll.status='done';ll.stage='Delivered';ll.result=i?i.value.trim():'';ll.doneBy=me.name;ll.doneAt=Date.now();markDirty(pid);render();toast('Marked as done');try{await labTell(pp,ll,'Delivered by the lab: '+ll.what+' for '+pp.first+' '+pp.last+(ll.result?' – '+ll.result:''))}catch(e){}}return}
   if(d.act==='labAdd'){const pp=P();if(!pp)return;const what=$('#lab-what').value,note=($('#lab-note').value||'').trim();const l={id:uid(),what,note,date:today(),at:Date.now(),by:me.name,byId:user.id,status:'requested'};pp.labs=pp.labs||[];pp.labs.push(l);save();render();toast('Sent to the lab');notifyUnit('lab','Lab request for '+labCase(pp).replace(/&middot;/g,'·')+': '+what+(note?' – '+note:''),pp.id);return}
   if(d.ivdel){const {error}=await sb.from('staff_invites').delete().eq('id',d.ivdel);if(error){toast(friendly(error));return}await loadInvites();render();toast('Invitation cancelled');return}
+  if(d.act==='portalPin'){const pp=P();if(!pp)return;
+    if(!booking.code){toast('Switch on Online booking first (Appointments → Online booking). The portal uses the same clinic link.');return}
+    if((pp.phone||'').replace(/\D/g,'').length<7){toast('Add the patient’s mobile number first.');return}
+    try{await flush()}catch(e){}
+    const pin=String(100000+crypto.getRandomValues(new Uint32Array(1))[0]%900000);
+    const {error}=await sb.rpc('set_portal_pin',{p_patient:pp.id,p_pin:pin});
+    if(error){const m=String(error.message||'');toast(/set_portal_pin|schema cache|does not exist/i.test(m)?'Run the new SQL file “supabase-update-portal.sql” in Supabase first.':friendly(error));return}
+    view.portalPin={id:pp.id,pin};render();return}
   if(d.act==='attToggle'){view.attOpen=!view.attOpen;render();return}
   if(d.act==='unitFormToggle'){earn.unitForm=!earn.unitForm;render();return}
   if(d.labpick){const [pid,lid]=d.labpick.split('|');const pp=db.patients.find(x=>x.id===pid),ll=pp&&(pp.labs||[]).find(x=>x.id===lid);if(ll){ll.pickedAt=Date.now();ll.pickedBy=me.name;markDirty(pid);render();toast('Marked as picked up – the lab is told');notifyUnit('lab','Picked up by the clinic: '+ll.what+' ('+labCase(pp).replace(/&middot;/g,'·')+')',pid)}return}

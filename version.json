@@ -1,5 +1,5 @@
 {
- "version": "17 Oct 2026 · page colour, pharmacy and lab",
+ "version": "17 Oct 2026 · patient portal",
  "date": "17 Oct 2026",
  "notes": [
   "Appointments now open first after you log in.",
@@ -8,6 +8,13 @@
   "Pharmacy: new prescriptions appear in the Pharmacy list; chosen staff get a pop-up and sound.",
   "Laboratory: dentists send lab requests from the patient's Lab tab; the lab marks them done with a result.",
   "Fixed a style line so all screens look correct.",
-  "Settings → background: choose the colour of the whole page, or your own photo."
+  "Settings → background: choose the colour of the whole page, or your own photo.",
+  "Departments are now one box on the patient list; tap it to open all departments.",
+  "Orthodontics: new Ortho tab with records checklist, examination, cephalometric values, diagnosis, treatment plan, scanner and digital devices, clear aligners and visit log.",
+  "Pharmacy and lab staff each get their own login and see only their own list: no patient files, no phone numbers, no other menus. Pharmacy can print prescriptions.",
+  "Lab: the lab sets a stage (Received, In progress, Ready for try-in, Quality check, Delivered); every dentist gets a notification with the patient's name.",
+  "Pharmacy and lab staff get their own login and see only their own list.",
+  "Menu numbers removed; a red dot shows only when something is new.",
+  "Patient portal: in a patient's Details tab, create a PIN; the patient logs in with mobile number + PIN and sees only their appointments, prescriptions and lab work that is ready."
  ]
 }
