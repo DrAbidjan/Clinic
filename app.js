@@ -7,7 +7,7 @@
 const CONFIG=window.CLINIC_CONFIG||{SUPABASE_URL:'',SUPABASE_ANON_KEY:''};
 const LOCAL=!!window.__LOCAL_DB;
 /* Seller details shown on the Activation screen. Fill these in (keep the quote marks). */
-const APP_VERSION='17 Oct 2026 · patient portal';
+const APP_VERSION='17 Oct 2026 · access control, app colour';
 const SELLER={name:'',whatsapp:'03113124533',price:'Rs 25,000'};
 
 const $=s=>document.querySelector(s);
@@ -222,7 +222,12 @@ function applyBranding(){
   if(bg)root.dataset.bg=bg;else delete root.dataset.bg;
   if(bg==='custom'&&branding.bgColor)root.style.setProperty('--bgcol',branding.bgColor);else root.style.removeProperty('--bgcol');
   if(bg==='photo'&&branding.bgImage)root.style.setProperty('--bgimg',`url("${branding.bgImage}")`);else root.style.removeProperty('--bgimg');
+  const th=/^#[0-9a-f]{6}$/i.test(branding.theme||'')?branding.theme:'';
+  const names=['--accent','--accent-soft','--side','--side-2','--side-on'];
+  if(th){root.style.setProperty('--accent',th);root.style.setProperty('--accent-soft','color-mix(in srgb,'+th+' 16%,var(--paper))');root.style.setProperty('--side','color-mix(in srgb,'+th+' 52%,#000)');root.style.setProperty('--side-2','color-mix(in srgb,'+th+' 36%,#000)');root.style.setProperty('--side-on','color-mix(in srgb,'+th+' 68%,#000)')}
+  else names.forEach(n=>root.style.removeProperty(n));
 }
+const THEMES=[['','Teal (original)','#1f5f6b'],['#2b5fa8','Blue','#2b5fa8'],['#5b4aa8','Purple','#5b4aa8'],['#2e7d4f','Green','#2e7d4f'],['#b0446b','Rose','#b0446b'],['#b8651b','Orange','#b8651b'],['#44505a','Slate','#44505a'],['custom','My own colour','']];
 async function saveBranding(patch){
   const data=Object.assign({},branding,patch);
   if(brandingId){const {error}=await sb.from('finance').update({data}).eq('id',brandingId);if(error)throw error}
@@ -262,6 +267,18 @@ const waLink=(p,text)=>{let n=String(p.phone||'').replace(/[^\d]/g,'');if(!n)ret
 async function labTell(pp,ll,text){const skip=new Set([user.id].concat(staffIds('lab'),staffIds('pharmacy')));const to=new Set((team||[]).map(t=>t.user_id).filter(id=>id&&!skip.has(id)));if(ll.byId&&ll.byId!==user.id)to.add(ll.byId);for(const id of to){try{await sendMessage(id,text,{kind:'labclinic',patient_id:pp.id})}catch(e){}}}
 const labCase=p=>{const ini=((p.first||'').slice(0,1)+(p.last||'').slice(0,1)).toUpperCase();const a=p.dob?age(p.dob):'';return esc('Patient '+ini+(a!==''?' · '+a+' yrs':'')+(p.sex==='F'?' · F':p.sex==='M'?' · M':''))};
 function pName(p){return esc((p.first||'')+' '+(p.last||''))}
+let appOwner=false,ownerCodes=null;
+async function loadOwnerFlag(){if(LOCAL){appOwner=false;return}try{const r=await sb.rpc('is_app_owner');appOwner=!r.error&&r.data===true}catch(e){appOwner=false}}
+async function loadSignupCodes(){try{const r=await sb.rpc('owner_list_signup_codes');ownerCodes=r.error?null:(r.data||[]);if(r.error)view.ocErr=String(r.error.message||'')}catch(e){ownerCodes=null}}
+function ownerCodesPanel(){
+  if(!appOwner)return '';
+  const rows=(ownerCodes||[]).map(c=>`<div class="member"><span style="flex:1;min-width:0"><b class="invite" style="font-size:1rem">${esc(c.code)}</b><br><span class="small muted">${esc(c.note||'')}${c.used_at?' · used by '+esc(c.clinic||'a clinic')+' on '+fmtDate(String(c.used_at).slice(0,10)):' · not used yet'}</span></span>${c.used_at?'':`<button class="btn small" type="button" data-ocdel="${esc(c.code)}">Delete</button>`}</div>`).join('');
+  return `<section class="panel"><h3>Owner: clinic creation codes</h3>
+    <p class="small muted" style="margin:0">Nobody can create a clinic without one of your codes. Make a code, send it only to the person you approve. Each code works once.</p>
+    <form id="ownerCodeForm" class="row"><input type="text" id="oc-note" placeholder="Who is it for? e.g. Dr Bilal, Smile Clinic" style="flex:1;min-width:200px"><button class="btn primary" type="submit">Make a code</button></form>
+    ${view.ocNew?`<div class="msg ok" style="margin:0">New code: <b class="invite" style="font-size:1.2rem">${esc(view.ocNew)}</b> <button class="btn small" type="button" data-act="ocCopy">Copy</button></div>`:''}
+    ${view.ocErr?`<div class="msg warn" style="margin:0">${/owner_|is_app_owner|schema cache|does not exist/i.test(view.ocErr)?'Run the new SQL file “supabase-update-access.sql” first.':esc(view.ocErr)}</div>`:''}
+    ${ownerCodes===null?'<p class="small muted" style="margin:0">Loading…</p>':rows?`<div class="plist">${rows}</div>`:'<p class="small muted" style="margin:0">No codes yet.</p>'}</section>`}
 let staffInv=[];
 async function loadInvites(){try{const {data,error}=await sb.from('staff_invites').select('*').eq('clinic_id',clinic.id);staffInv=error?[]:(data||[])}catch(e){staffInv=[]}}
 const myInvUnit=()=>{const r=staffInv.find(x=>user&&x.used_by===user.id&&x.unit);return r?r.unit:''};
@@ -424,7 +441,7 @@ function helpGo(e){
     return;
   }
   if(e.s==='settings'){view.newRecovery=null;if(isAdmin()||isAcct()){attRows=null;loadAttendance(attDay||today()).then(()=>{if(view.screen==='settings')softRender()})}
-    view.screen='settings';view.pid=null;view.confirm=null;view.msg=null;render();loadTeam().then(()=>{if(view.screen==='settings')softRender()});
+    view.screen='settings';view.pid=null;view.confirm=null;view.msg=null;render();loadTeam().then(()=>{if(view.screen==='settings')softRender()});if(appOwner)loadSignupCodes().then(()=>{if(view.screen==='settings')softRender()});
     after(()=>helpShowTip(helpHeading(e.h),'Here: '+e.t));return}
   if(e.s==='appts'){view=Object.assign(view,{screen:'appts',pid:null,confirm:null,msg:null,day:view.day||today()});render();refreshAppts();after(()=>helpShowTip(document.querySelector('.main h1')||null,'You are in Appointments.'));return}
   if(e.s==='earn'){view=Object.assign(view,{screen:'earn',pid:null,confirm:null,msg:null});earn.err='';earn.mode='';render();if(earnOpen())loadEarn();after(()=>helpShowTip(document.querySelector('.main h1')||null,'Earnings is PIN protected. Enter your PIN to open it.'));return}
@@ -453,6 +470,9 @@ function brandingPanel(){
     <div class="brandrow"><div class="logoprev">${branding.logo?`<img src="${esc(branding.logo)}" alt="Clinic logo">`:`<span class="muted small">No logo</span>`}</div>
       <div style="display:flex;flex-direction:column;gap:6px"><p class="small muted" style="margin:0">Your logo shows in the menu, on the welcome screen and on every printout. PNG or JPG; it is made small automatically.</p>
       <div class="row"><label class="btn small primary filebtn">${branding.logo?'Change logo':'Upload logo'}<input type="file" id="brand-logo" accept="image/png,image/jpeg,image/webp"></label>${branding.logo?'<button class="btn small" data-act="logoRemove">Remove logo</button>':''}</div></div></div>
+    <p class="small" style="margin:6px 0 0"><b>Colour of the whole app</b> – buttons, menu and headings (for everyone in the clinic)</p>
+    <div class="bgchoices">${THEMES.map(([k,l,c])=>{const on=k==='custom'?(branding.theme&&!THEMES.some(t=>t[0]===branding.theme)):(branding.theme||'')===k;return `<button type="button" class="bgsw ${on?'on':''}" data-themeset="${k||'default'}" aria-pressed="${on}"><i style="background:${k==='custom'?(branding.theme||'#888'):c}"></i><span>${l}</span></button>`}).join('')}</div>
+    ${branding.theme&&!THEMES.some(t=>t[0]===branding.theme)||view.themeCustom?`<div class="row"><label class="f" style="flex-direction:row;align-items:center;gap:10px"><span>Pick the colour</span><input type="color" id="brand-theme" value="${esc(branding.theme||'#2b5fa8')}" style="width:56px;height:44px;padding:2px"></label></div>`:''}
     <p class="small" style="margin:6px 0 0"><b>Background of the main screen</b> (for everyone in the clinic)</p>
     <div class="bgchoices">${BG_CHOICES.map(([k,l])=>`<button type="button" class="bgsw ${bg===k?'on':''}" data-bgset="${k}" data-sw="${k||'plain'}" aria-pressed="${bg===k}"><i></i><span>${l}</span></button>`).join('')}</div>
     ${bg==='custom'?`<div class="row"><label class="f" style="flex-direction:row;align-items:center;gap:10px"><span>Pick the colour of the whole page</span><input type="color" id="brand-col" value="${esc(branding.bgColor||'#cfe8e5')}" style="width:56px;height:44px;padding:2px"></label><span class="small muted">It is shown softly so the text stays easy to read.</span></div>`:''}
@@ -637,7 +657,7 @@ async function openClinic(m){
   if(dirty.size)await flush();
   clinic=m.clinics;me={user_id:user.id,name:m.name,role:m.role,pmdc:m.pmdc||''};lsSet('clinicId',clinic.id);
   view.screen='loading';render();
-  try{db={patients:[]};await Promise.all([loadPatients(),loadTeam(),loadBranding(),loadBookingCfg(),loadInvites()]);}
+  try{db={patients:[]};await Promise.all([loadPatients(),loadTeam(),loadBranding(),loadBookingCfg(),loadInvites(),loadOwnerFlag()]);}
   catch(e){view.screen='error';view.msg={t:'err',m:friendly(e)};render();return}
   subscribe();
   setTimeout(prepareDaily,1500);startAttendance();loadMessages().then(()=>{const n=unreadCount();if(n){render();setTimeout(()=>toast('You have '+n+' new message'+(n>1?'s':'')+' – open Messages'),400)}});
@@ -2092,6 +2112,7 @@ function onboardView(){
   <form class="panel" id="createForm"><h2>Create your clinic</h2>
     <p class="small muted" style="margin:0">${LOCAL?'You become the clinic admin and can add dentists with their own logins.':'You become the clinic admin and get an invite code for your dentists.'}</p>
     <label class="f"><span>What are you registering?</span><select id="cc-fac"><option value="dental_clinic" ${facilityPref==='dental_clinic'?'selected':''}>Dental clinic</option><option value="dental_hospital" ${facilityPref==='dental_hospital'?'selected':''}>Dental hospital (departments)</option><option disabled>Medical clinic – coming soon</option><option disabled>Medical hospital – coming soon</option></select></label>
+    ${LOCAL?'':'<label class="f"><span>Clinic creation code (from the app owner)</span><input type="text" id="cc-code" class="codein" autocapitalize="characters" autocomplete="off" required></label><p class="small muted" style="margin:0">Only clinics approved by the app owner can be created. If you work for a clinic that already uses the app, do not create a new one: ask your clinic admin to invite your email, then log in again.</p>'}
     <label class="f"><span>Clinic or hospital name</span><input type="text" id="cc-name" placeholder="e.g. Smile Dental Clinic" required></label>
     <label class="f"><span>Address</span><input type="text" id="cc-address" placeholder="Street, city"></label>
     <label class="f"><span>Phone</span><input type="tel" id="cc-phone"></label>
@@ -2165,6 +2186,7 @@ function settingsView(){
   <h1>Clinic & account</h1>
   <p class="small muted" style="margin:-6px 0 12px">App version: <b>${APP_VERSION}</b></p>
   ${brandingPanel()}
+  ${ownerCodesPanel()}
   ${deptPanel()}
   ${bookingSettingsPanel()}
   ${soundsPanel()}
@@ -3172,7 +3194,7 @@ document.addEventListener('submit',async e=>{
     }
     if(f.id==='createForm'){
       if(!v('cc-name'))throw new Error('Enter the clinic name.');
-      const {data,error}=await sb.rpc('create_clinic',{p_name:v('cc-name'),p_address:v('cc-address'),p_phone:v('cc-phone'),p_my_name:v('cc-me')});if(error)throw error;
+      const {data,error}=await sb.rpc('create_clinic',{p_name:v('cc-name'),p_address:v('cc-address'),p_phone:v('cc-phone'),p_my_name:v('cc-me'),p_code:LOCAL?null:v('cc-code')});if(error)throw error;
       await sb.from('clinics').update({reg_body:$('#cc-regbody').value,reg_no:v('cc-regno'),ntn:v('cc-ntn')}).eq('id',data);
       if(v('cc-pmdc'))await sb.rpc('set_my_pmdc',{p_clinic:data,p_pmdc:v('cc-pmdc')});
       let rc=null;if(LOCAL){const r=await sb.rpc('new_recovery_code',{p_clinic:data});rc=r.data}
@@ -3198,6 +3220,10 @@ document.addEventListener('submit',async e=>{
       view.email=v('rv-user');view.rvCode=v('rv-code');
       await window.__LOCAL_DB.recover(v('rv-user'),v('rv-code'),$('#rv-pw').value);
       view.email=v('rv-user').toLowerCase();view.rvCode='';view.showRecover=false;view.msg={t:'ok',m:'Password changed. Log in with your new password.'};render();return;
+    }
+    if(f.id==='ownerCodeForm'){
+      const {data,error}=await sb.rpc('owner_make_signup_code',{p_note:v('oc-note')});if(error)throw error;
+      view.ocNew=data;view.ocErr='';await loadSignupCodes();toast('Code made');
     }
     if(f.id==='inviteForm'){
       const unit=$('#iv-unit').value,em=v('iv-email');
@@ -3312,6 +3338,8 @@ document.addEventListener('click',async e=>{
   if(d.act==='bkShare'){const l=bookingLink();if(navigator.share){navigator.share({title:clinic.name+' – book an appointment',text:'Book your appointment at '+clinic.name+':',url:l}).catch(()=>{})}else window.open('https://wa.me/?text='+encodeURIComponent('Book your appointment at '+clinic.name+': '+l),'_blank');return}
   if(d.act==='bkPoster'){try{await bookingPoster()}catch(err){toast(friendly(err))}return}
   if(d.act==='bkNewCode'){if(!confirm('Make a new booking code? The old QR code and link will stop working.'))return;const code=newBookingCode();const {error}=await sb.from('clinics').update({booking_code:code}).eq('id',clinic.id);if(error){toast(friendly(error));return}booking.code=code;render();toast('New QR code made – print the new poster');return}
+  if(d.themeset!==undefined){if(!isAdmin())return;if(d.themeset==='custom'){view.themeCustom=true;render();toast('Pick a colour');return}
+    try{await saveBranding({theme:d.themeset==='default'?'':d.themeset});view.themeCustom=false;render();toast('Colour changed')}catch(err){toast(friendly(err))}return}
   if(d.bgset!==undefined){if(!isAdmin())return;if(d.bgset==='photo'&&!branding.bgImage){view.bgPhoto=true;render();toast('Choose a photo for the background');return}
     try{await saveBranding(d.bgset==='custom'&&!branding.bgColor?{bg:'custom',bgColor:'#cfe8e5'}:{bg:d.bgset});view.bgPhoto=false;render();toast('Background changed')}catch(err){toast(friendly(err))}return}
   if(d.act==='logoRemove'){try{await saveBranding({logo:''});render();toast('Logo removed')}catch(err){toast(friendly(err))}return}
@@ -3360,6 +3388,8 @@ document.addEventListener('click',async e=>{
     const {error}=await sb.rpc('set_portal_pin',{p_patient:pp.id,p_pin:pin});
     if(error){const m=String(error.message||'');toast(/set_portal_pin|schema cache|does not exist/i.test(m)?'Run the new SQL file “supabase-update-portal.sql” in Supabase first.':friendly(error));return}
     view.portalPin={id:pp.id,pin};render();return}
+  if(d.act==='ocCopy'){try{await navigator.clipboard.writeText(view.ocNew||'');toast('Code copied')}catch(e){toast('Select the code and copy it')}return}
+  if(d.ocdel){const {error}=await sb.rpc('owner_delete_signup_code',{p_code:d.ocdel});if(error){toast(friendly(error));return}await loadSignupCodes();render();return}
   if(d.act==='attToggle'){view.attOpen=!view.attOpen;render();return}
   if(d.act==='unitFormToggle'){earn.unitForm=!earn.unitForm;render();return}
   if(d.labpick){const [pid,lid]=d.labpick.split('|');const pp=db.patients.find(x=>x.id===pid),ll=pp&&(pp.labs||[]).find(x=>x.id===lid);if(ll){ll.pickedAt=Date.now();ll.pickedBy=me.name;markDirty(pid);render();toast('Marked as picked up – the lab is told');notifyUnit('lab','Picked up by the clinic: '+ll.what+' ('+labCase(pp).replace(/&middot;/g,'·')+')',pid)}return}
@@ -3432,7 +3462,7 @@ document.addEventListener('click',async e=>{
   if(d.askrm){view.confirm='rm:'+d.askrm;render();return}
   if(d.rm){const pw=($('#rm-pw')||{}).value||'';if(!pw){toast('Type your password to remove this person.');return}
     try{const r=await sb.auth.signInWithPassword({email:user.email,password:pw});if(r.error)throw r.error}catch(e){toast('Wrong password.');return}
-    const {error}=await sb.from('members').delete().eq('clinic_id',clinic.id).eq('user_id',d.rm);if(error){toast(friendly(error));return}view.confirm=null;await loadTeam();render();toast('Removed from the clinic');return}
+    const {error}=LOCAL?await sb.from('members').delete().eq('clinic_id',clinic.id).eq('user_id',d.rm):await sb.rpc('remove_member',{p_clinic:clinic.id,p_user:d.rm});if(error){toast(friendly(error));return}view.confirm=null;await loadTeam();render();toast('Removed from the clinic');return}
   if(d.ntpl){const keep=$('#n-text')?$('#n-text').value:'';const keepT=$('#n-title')?$('#n-title').value:'';view.noteTpl=d.ntpl;
     if(d.ntpl==='rct'){if(!view.rct||!view.rct.canals||view.rct.pid!==p.id){view.rct={pid:p.id};rctSetTooth(p,'')}render();$('#n-text').value=keep;$('#n-title').value='Treatment';return}
     render();const tx=$('#n-text');tx.value=(keep.trim()?keep.trim()+'\n\n':'')+NOTE_TPLS[d.ntpl][1];$('#n-title').value=keepT||'Treatment';tx.focus();return}
@@ -3522,7 +3552,7 @@ document.addEventListener('click',async e=>{
     case 'back':if(view.screen==='patient'&&view.backTo==='appts'){view=Object.assign(view,{screen:'appts',pid:null,confirm:null});render();refreshAppts();break;}
       if(view.screen==='patient'&&(view.backTo==='aes'||isAes(P()))){view=Object.assign(view,{screen:'aes',pid:null,tab:'details',tooth:null,confirm:null,addItem:null,msg:null});render();break;}
       view=Object.assign(view,{screen:memberships.length?'list':'onboard',pid:null,tab:'details',tooth:null,confirm:null,addItem:null,msg:null});render();break;
-    case 'settings':view.newRecovery=null;if(isAdmin()||isAcct()){attRows=null;loadAttendance(attDay||today()).then(()=>{if(view.screen==='settings')softRender()})}if(LOCAL){snapList=null;window.__LOCAL_DB.listSnapshots().then(l=>{snapList=l;if(view.screen==='settings')softRender()})}view.screen='settings';view.confirm=null;view.msg=null;render();loadTeam().then(()=>{if(view.screen==='settings')softRender()});break;
+    case 'settings':view.newRecovery=null;if(isAdmin()||isAcct()){attRows=null;loadAttendance(attDay||today()).then(()=>{if(view.screen==='settings')softRender()})}if(LOCAL){snapList=null;window.__LOCAL_DB.listSnapshots().then(l=>{snapList=l;if(view.screen==='settings')softRender()})}view.screen='settings';view.confirm=null;view.msg=null;render();loadTeam().then(()=>{if(view.screen==='settings')softRender()});if(appOwner)loadSignupCodes().then(()=>{if(view.screen==='settings')softRender()});break;
     case 'onboard':view.screen='onboard';view.msg=null;render();break;
     case 'paperPatient':{const np=blankPatient();np.paperEntry=true;if(view.impSec==='aes')np.kind='aesthetic';db.patients.push(np);markDirty(np.id);view.impOpen=false;view=Object.assign(view,{screen:'patient',pid:np.id,tab:'details',tooth:null,q:'',confirm:null});render();const f=$('#f-first');if(f){f.focus();f.select()}break;}
     case 'paperDone':{const p=P();if(!p)break;if(!(p.first||'').trim()){toast('Write the patient\'s name first.');view.tab='details';render();break}delete p.paperEntry;save();render();toast('Saved – now a normal patient');break;}

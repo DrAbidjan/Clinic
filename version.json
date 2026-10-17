@@ -1,5 +1,5 @@
 {
- "version": "17 Oct 2026 · patient portal",
+ "version": "17 Oct 2026 · access control, app colour",
  "date": "17 Oct 2026",
  "notes": [
   "Appointments now open first after you log in.",
@@ -15,6 +15,9 @@
   "Lab: the lab sets a stage (Received, In progress, Ready for try-in, Quality check, Delivered); every dentist gets a notification with the patient's name.",
   "Pharmacy and lab staff get their own login and see only their own list.",
   "Menu numbers removed; a red dot shows only when something is new.",
-  "Patient portal: in a patient's Details tab, create a PIN; the patient logs in with mobile number + PIN and sees only their appointments, prescriptions and lab work that is ready."
+  "Patient portal: in a patient's Details tab, create a PIN; the patient logs in with mobile number + PIN and sees only their appointments, prescriptions and lab work that is ready.",
+  "Only clinics approved by the app owner can be created (creation codes).",
+  "Removed people can no longer rejoin with an old invitation or create their own clinic.",
+  "Settings: choose the colour of the whole app."
  ]
 }
