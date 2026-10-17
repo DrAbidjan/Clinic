@@ -56,7 +56,7 @@ function show(d){
   main.innerHTML=`<div class="card"><h2>Next appointments</h2>${up.length?up.map(aItem).join(''):'<p class="muted" style="margin:0">No appointment booked.</p>'}
     <a class="btn" href="book.html?c=${encodeURIComponent(code)}">Book a new appointment</a></div>
   ${labs?`<div class="card"><h2>Lab work ready</h2>${labs}</div>`:''}
-  <div class="card"><h2>My prescriptions</h2>${rx||'<p class="muted" style="margin:0">No prescriptions yet.</p>'}</div>
+  <div class="card"><h2>My prescription (last 24 hours)</h2>${rx||'<p class="muted" style="margin:0">No prescription in the last 24 hours.</p>'}<p class="muted" style="margin:0">A prescription is shown here for 24 hours after the clinic issues it. Please save or screenshot it.</p></div>
   ${past.length?`<div class="card"><h2>Past appointments</h2>${past.slice(0,10).map(aItem).join('')}</div>`:''}
   <button class="alt" id="out">Log out</button>`;
   document.getElementById('out').onclick=()=>{loginView('');document.getElementById('ttl').textContent='Patient portal';document.getElementById('sub').textContent='Your appointments and prescriptions'};
